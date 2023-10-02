@@ -1,0 +1,73 @@
+# Kconfig settings for ESP32 MCUs
+if MACH_ESP32
+config ESP32_COM_PORT
+    string "COM Port For Flashing ESP32"
+    default "ttyUSB0"
+
+
+config ESP32_SELECT
+    bool
+    default y
+    select ESP32_BOARD_CONFIG
+    select ESP32_BOARD_WROOM32
+    select MACH_ESP32_RAW
+
+config ESP32_BOARD_CONFIG
+    bool
+
+config ESP32_BOARD_WROOM32
+    bool
+
+config MACH_ESP32_RAW
+    bool
+
+config BOARD_DIRECTORY
+    string
+    default "esp"
+
+######################################################################
+# SDK Path
+######################################################################
+config PATH_TO_ESP32_IDF
+    string "Path to esp-idf sdk installation"
+    default "$HOME/ESP32/esp-idf"
+######################################################################
+# Chip selection
+######################################################################
+
+choice
+    prompt "Chip/Modular Model(Currently Only Adds Support for ESP32-WROOM32E)"
+    config MACH_ESP32_WROOM32E
+        bool "ESP32_WROOM32E"
+endchoice
+
+######################################################################
+# IO Expansion selection
+######################################################################
+
+config ESP32_IO_EXPANSION
+    bool "Use 74HC595s as output IO expansion"
+    config ESP32_EXP_IO_DATA_PIN 
+        int "Set output data pin"
+        default 2
+        depends on ESP32_IO_EXPANSION
+    config ESP32_EXP_IO_SRCLK_PIN
+        int "Set dataout clk pin"
+        default 3
+        depends on ESP32_IO_EXPANSION
+    config ESP32_EXP_IO_SRCLK_PIN
+        int "Set dataout rclk pin"
+        default 4
+        depends on ESP32_IO_EXPANSION
+    config ESP32_EXP_IO_COUNT
+        int "Total pins expanded" 
+        depends on ESP32_IO_EXPANSION
+        default 32
+config EXP32_IO_DUAL_EXPANSION
+    bool "Setup sencond IO expansion port"
+    depends on ESP32_IO_EXPANSION
+config ESP32_EXP2_IO_RCLK_PIN
+    int "Set output data pin for second expansion unit"
+    depends on EXP32_IO_DUAL_EXPANSION
+
+endif
