@@ -11,6 +11,7 @@ config ESP32_SELECT
     select ESP32_BOARD_CONFIG
     select ESP32_BOARD_WROOM32
     select MACH_ESP32_RAW
+    select SERIAL
 
 config ESP32_BOARD_CONFIG
     bool
@@ -40,6 +41,12 @@ choice
     config MACH_ESP32_WROOM32E
         bool "ESP32_WROOM32E"
 endchoice
+######################################################################
+# Timer Clock selection
+######################################################################
+config CLOCK_FREQ
+    int "System Timer Clock Frequency"
+    default 1000000
 
 ######################################################################
 # IO Expansion selection

@@ -17,7 +17,7 @@
 
 static struct timer periodic_timer, sentinel_timer, deleted_timer;
 
-static struct {
+static volatile struct {
     struct timer *timer_list, *last_insert;
     int8_t tasks_status;
     uint8_t shutdown_status, shutdown_reason;
