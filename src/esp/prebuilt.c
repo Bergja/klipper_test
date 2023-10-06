@@ -9,7 +9,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
-uint8_t esp_irq_stat=1;
+volatile uint8_t esp_irq_stat=1;
 
 static const char *TAG = "klipper main";
 

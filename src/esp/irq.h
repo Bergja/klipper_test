@@ -15,6 +15,8 @@ extern uint8_t esp_irq_stat;
 
 static inline void irq_disable(void)
 {
+
+        // taskENTER_CRITICAL(&klipper_spinlock);
     if (esp_irq_stat)
     {
         // ESP_LOGI("irq","Disabled!");
@@ -25,6 +27,7 @@ static inline void irq_disable(void)
 
 static inline void irq_enable(void)
 {
+        // taskEXIT_CRITICAL(&klipper_spinlock);
     if (!esp_irq_stat)
     {
         // taskEXIT_CRITICAL(&klipper_spinlock);

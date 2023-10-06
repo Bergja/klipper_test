@@ -11,6 +11,7 @@ config ESP32_SELECT
     select ESP32_BOARD_CONFIG
     select ESP32_BOARD_WROOM32
     select MACH_ESP32_RAW
+    select HAVE_GPIO
     select SERIAL
 
 config ESP32_BOARD_CONFIG
