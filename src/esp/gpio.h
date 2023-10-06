@@ -5,8 +5,7 @@
 //Simulation
 
 //Tempory Public Defines should be moved to Kconfig Later
-#define ESP32_IO_EXPANSION
-#define ESP32_IO_DUAL_EXPANSION
+
 //Define End
 struct gpio_out {
     volatile void *regs;

@@ -29,19 +29,13 @@
 #define TX_BUFFER_SIZE 192
 #define UART_QUEUE_SIZE 0
 
-// #ifdef CONFIG_KLIPPER_SERIAL_U0
-// #define KLIPPER_SERIAL UART_NUM_0
-// #define KLIPPER_SERIAL_TXD_PIN 1
-// #define KLIPPER_SERIAL_RXD_PIN 21
-// #elif CONFIG_KLIPPER_SERIAL_U1
-// #define KLIPPER_SERIAL UART_NUM_1
-// #define KLIPPER_SERIAL_TXD_PIN 10
-// #define KLIPPER_SERIAL_RXD_PIN 11
-// #elif CONFIG_KLIPPER_SERIAL_U2
+#if CONFIG_KLIPPER_SERIAL_U0
+#define KLIPPER_SERIAL UART_NUM_0
+#elif CONFIG_KLIPPER_SERIAL_U1
+#define KLIPPER_SERIAL UART_NUM_1
+#elif CONFIG_KLIPPER_SERIAL_U2
 #define KLIPPER_SERIAL UART_NUM_2
-#define KLIPPER_SERIAL_TXD_PIN 17
-#define KLIPPER_SERIAL_RXD_PIN 16
-// #endif
+#endif
 
 static const char *TAG = "klipper serial";
 
@@ -63,10 +57,10 @@ static inline void serial_rx(void)
     }
     else if (!maxlen)
     {
-        klipper_serial_rx_pos=0;
+        klipper_serial_rx_pos = 0;
         maxlen = RX_BUFFER_SIZE;
     }
-    
+
     ESP_ERROR_CHECK(uart_get_buffered_data_len(KLIPPER_SERIAL, (size_t *)&len));
     if (len > maxlen)
     {
@@ -74,10 +68,10 @@ static inline void serial_rx(void)
     }
     len = uart_read_bytes(KLIPPER_SERIAL, klipper_serial_rx_buff + klipper_serial_rx_pos, len, 0);
     if (len > 0)
-    {   
-        for(maxlen=0;maxlen<len;maxlen++)
+    {
+        for (maxlen = 0; maxlen < len; maxlen++)
         {
-            if(*(klipper_serial_rx_buff+klipper_serial_rx_pos+maxlen)==MESSAGE_SYNC)
+            if (*(klipper_serial_rx_buff + klipper_serial_rx_pos + maxlen) == MESSAGE_SYNC)
             {
                 sched_wake_tasks();
             }
@@ -142,7 +136,7 @@ void serial_init(void)
         .rx_flow_ctrl_thresh = 122};
     ESP_ERROR_CHECK(uart_param_config(KLIPPER_SERIAL, &esp_serial_config));
     ESP_LOGI(TAG, "UART_Configured");
-    ESP_ERROR_CHECK(uart_set_pin(KLIPPER_SERIAL, KLIPPER_SERIAL_TXD_PIN, KLIPPER_SERIAL_RXD_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
+    ESP_ERROR_CHECK(uart_set_pin(KLIPPER_SERIAL, CONFIG_KLIPPER_SERIAL_TXD_PIN, CONFIG_KLIPPER_SERIAL_RXD_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
     ESP_LOGI(TAG, "UART_Pin_Set");
     ESP_ERROR_CHECK(uart_driver_install(KLIPPER_SERIAL, RX_BUFFER_SIZE, TX_BUFFER_SIZE, 5, &klipper_serial_queue, ESP_INTR_FLAG_LEVEL1));
     ESP_ERROR_CHECK(uart_enable_rx_intr(KLIPPER_SERIAL));

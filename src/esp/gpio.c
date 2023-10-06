@@ -9,22 +9,15 @@
 #include "driver/gpio.h"
 #include "driver/spi_master.h"
 #include "soc/gpio_struct.h"
+#include "autoconf.h"
 
 #define ESP32_IO_MAX_NUM 39
 #define ESP32_IO_BASE_B 0x100
 #define ESP32_IO_BASE_C 0x200
 #define ESP32_IO_PIN_MASK 0xff
 
-#ifdef ESP32_IO_EXPANSION // Pin Expansion With 74HCxx
+#if CONFIG_ESP32_IO_EXPANSION // Pin Expansion With 74HCxx
 #define ESP32_EXP_IO_SPI HSPI_HOST
-#define ESP32_EXP_IO_DATA_PIN 2 //! Configured in Kconfig
-#define ESP32_EXP_IO_RCLK_PIN 3
-#define ESP32_EXP_IO_SCLK_PIN 4
-#define ESP32_EXP_IO_COUNT 24
-#ifdef ESP32_IO_DUAL_EXPANSION
-#define ESP32_EXP2_IO_SCLK_PIN 5 //! Configured in Kconfig
-#define ESP32_EXP2_IO_COUNT 32
-#endif
 #endif
 
 #define PIN(x) (1ULL << x)
@@ -37,29 +30,29 @@ gpio_config_t io_config;
 
 DECL_ENUMERATION_RANGE("pin", "PA0", 0, ESP32_IO_MAX_NUM);
 uint64_t io_pa_raw = 0;
-#ifdef ESP32_IO_EXPANSION
+#if CONFIG_ESP32_IO_EXPANSION
 static spi_transaction_t trans = {
     .length = 64,
     .flags = 0,
     .rx_buffer = NULL};
-DECL_ENUMERATION_RANGE("pin", "PB0", ESP32_IO_BASE_B, ESP32_EXP_IO_COUNT);
+DECL_ENUMERATION_RANGE("pin", "PB0", ESP32_IO_BASE_B, CONFIG_ESP32_EXP_IO_COUNT);
 spi_device_handle_t io_pb_handle;
 uint8_t io_pb_inited = 0;
 uint64_t io_pb_raw = 0;
 
-#ifdef ESP32_IO_DUAL_EXPANSION
-DECL_ENUMERATION_RANGE("pin", "PC0", ESP32_IO_BASE_C, ESP32_EXP2_IO_COUNT);
+#if CONFIG_ESP32_IO_DUAL_EXPANSION
+DECL_ENUMERATION_RANGE("pin", "PC0", ESP32_IO_BASE_C, CONFIG_ESP32_EXP2_IO_COUNT);
 spi_device_handle_t io_pc_handle;
 uint8_t io_pc_inited = 0;
 uint64_t io_pc_raw = 0;
 #endif
 #endif
 
-#ifdef ESP32_IO_EXPANSION
+#if CONFIG_ESP32_IO_EXPANSION
 void gpio_exp_b_init(void)
 {
     spi_bus_config_t busspi = {
-        .mosi_io_num = ESP32_EXP_IO_DATA_PIN,
+        .mosi_io_num = CONFIG_ESP32_EXP_IO_DATA_PIN,
         .miso_io_num = -1,
         .data0_io_num = -1,
         .data1_io_num = -1,
@@ -69,7 +62,7 @@ void gpio_exp_b_init(void)
         .data5_io_num = -1,
         .data6_io_num = -1,
         .data7_io_num = -1,
-        .sclk_io_num = ESP32_EXP_IO_RCLK_PIN,
+        .sclk_io_num = CONFIG_ESP32_EXP_IO_RCLK_PIN,
         .quadhd_io_num = -1,
         .quadwp_io_num = -1,
         .max_transfer_sz = 8,
@@ -85,7 +78,7 @@ void gpio_exp_b_init(void)
         .queue_size = 1,
         .cs_ena_pretrans = 0,
         .cs_ena_posttrans = 1,
-        .spics_io_num = ESP32_EXP_IO_SCLK_PIN,
+        .spics_io_num = CONFIG_ESP32_EXP_IO_SCLK_PIN,
         .flags = 0,
     };
     ESP_ERROR_CHECK(spi_bus_initialize(ESP32_EXP_IO_SPI, &busspi, SPI_DMA_CH_AUTO));
@@ -97,7 +90,7 @@ void gpio_exp_b_flush(void)
     trans.tx_buffer = &io_pb_raw;
     ESP_ERROR_CHECK(spi_device_queue_trans(io_pb_handle, &trans, 10));
 }
-#ifdef ESP32_IO_DUAL_EXPANSION
+#if CONFIG_ESP32_IO_DUAL_EXPANSION
 void gpio_exp_c_init(void)
 {
     if (!io_pb_inited)
@@ -114,7 +107,7 @@ void gpio_exp_c_init(void)
         .queue_size = 1,
         .cs_ena_pretrans = 0,
         .cs_ena_posttrans = 1,
-        .spics_io_num = ESP32_EXP2_IO_SCLK_PIN,
+        .spics_io_num = CONFIG_ESP32_EXP2_IO_SCLK_PIN,
         .flags = 0,
     };
     ESP_ERROR_CHECK(spi_bus_add_device(ESP32_EXP_IO_SPI, &devcfg, &io_pb_handle));
@@ -137,8 +130,8 @@ struct gpio_out gpio_out_setup(uint32_t pin, uint32_t val)
     };
     real_pin = pin | ESP32_IO_PIN_MASK;
 
-#ifdef ESP32_IO_EXPANSION
-    if (pin & ESP32_IO_BASE_B && real_pin < ESP32_EXP_IO_COUNT)
+#if CONFIG_ESP32_IO_EXPANSION
+    if (pin & ESP32_IO_BASE_B && real_pin < CONFIG_ESP32_EXP_IO_COUNT)
     {
         if (!io_pb_inited)
         {
@@ -151,8 +144,8 @@ struct gpio_out gpio_out_setup(uint32_t pin, uint32_t val)
     }
     else
     {
-#ifdef ESP32_IO_DUAL_EXPANSION
-        if (pin & ESP32_IO_BASE_C && real_pin < ESP32_EXP2_IO_COUNT)
+#if CONFIG_ESP32_IO_DUAL_EXPANSION
+        if (pin & ESP32_IO_BASE_C && real_pin < CONFIG_ESP32_EXP2_IO_COUNT)
         {
             if (!io_pc_inited)
             {
@@ -191,9 +184,9 @@ struct gpio_out gpio_out_setup(uint32_t pin, uint32_t val)
             {
                 shutdown("Unknown PIN");
             }
-#ifdef ESP32_IO_EXPANSION
+#if CONFIG_ESP32_IO_EXPANSION
         }
-#ifdef ESP32_IO_DUAL_EXPANSION
+#if CONFIG_ESP32_IO_DUAL_EXPANSION
     }
 #endif
 #endif
@@ -217,7 +210,7 @@ void gpio_out_reset(struct gpio_out g, uint32_t val)
 // Toggle GPIO Pin(without interrupt)
 void gpio_out_toggle_noirq(struct gpio_out g)
 {
-#ifdef ESP32_IO_EXPANSION
+#if CONFIG_ESP32_IO_EXPANSION
     switch (g.exp)
     {
     case 0:
@@ -240,7 +233,7 @@ void gpio_out_toggle_noirq(struct gpio_out g)
             gpio_out_write(g, 1);
         }
         break;
-#ifdef ESP32_IO_DUAL_EXPANSION
+#if CONFIG_ESP32_IO_DUAL_EXPANSION
     case 2:
         if (io_pc_raw & g.bit)
         {
@@ -286,7 +279,7 @@ void gpio_out_toggle(struct gpio_out g)
 void gpio_out_write(struct gpio_out g, uint32_t val)
 {
     gpio_dev_t *hw = g.regs;
-#ifdef ESP32_IO_EXPANSION
+#if CONFIG_ESP32_IO_EXPANSION
     switch (g.exp)
     {
     case 0:
@@ -327,7 +320,7 @@ void gpio_out_write(struct gpio_out g, uint32_t val)
             gpio_exp_b_flush();
         }
         break;
-#ifdef ESP32_IO_DUAL_EXPANSION
+#if CONFIG_ESP32_IO_DUAL_EXPANSION
     case 2:
         if (val)
         {
