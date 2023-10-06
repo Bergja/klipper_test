@@ -20,7 +20,7 @@ void gpio_out_toggle(struct gpio_out g);
 void gpio_out_write(struct gpio_out g, uint32_t val);
 
 struct gpio_in {
-    void *regs;
+    volatile void *regs;
     uint64_t bit;
 };
 struct gpio_in gpio_in_setup(uint32_t pin, int32_t pull_up);

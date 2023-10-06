@@ -22,7 +22,7 @@ IDF_INCLUDES-y += -I $(CONFIG_PATH_TO_ESP32_IDF)/components/soc/$(ESP_TARGET)/in
 
 IDF_INCLUDES-y += -I $(CONFIG_PATH_TO_ESP32_IDF)/components/hal/$(ESP_TARGET)/include
 IDF_INCLUDES-y += -I $(CONFIG_PATH_TO_ESP32_IDF)/components/hal/include
-IDF_INCLUDES-y += -I $(CONFIG_PATH_TO_ESP32_IDF)/components/hal/platform_port/include/hal
+# IDF_INCLUDES-y += -I $(CONFIG_PATH_TO_ESP32_IDF)/components/hal/plateform_port/include/hal
 
 IDF_INCLUDES-y += -I $(CONFIG_PATH_TO_ESP32_IDF)/components/esp_rom/include
 IDF_INCLUDES-y += -I $(CONFIG_PATH_TO_ESP32_IDF)/components/esp_rom/include/$(ESP_TARGET)
@@ -161,7 +161,7 @@ CFLAGS += -D_GNU_SOURCE -D_POSIX_READER_WRITER_LOCKS
 dirs-y += src/esp src/generic
 
 # peripherals code
-src-y += esp/gpio.c esp/timer.c esp/serial.c
+src-y += esp/gpio.c esp/timer.c esp/serial.c esp/pwm.c
 src-y += generic/timer_irq.c
 # Main func
 src-y += esp/prebuilt.c
