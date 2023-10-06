@@ -10,6 +10,7 @@
 #include "driver/spi_master.h"
 #include "soc/gpio_struct.h"
 #include "autoconf.h"
+#include "esp_log.h"
 
 #define ESP32_IO_MAX_NUM 39
 #define ESP32_IO_BASE_B 0x100
@@ -34,17 +35,18 @@ uint64_t io_pa_raw = 0;
 static spi_transaction_t trans = {
     .length = 64,
     .flags = 0,
-    .rx_buffer = NULL};
+    .rx_buffer = NULL,
+    };
 DECL_ENUMERATION_RANGE("pin", "PB0", ESP32_IO_BASE_B, CONFIG_ESP32_EXP_IO_COUNT);
 spi_device_handle_t io_pb_handle;
 uint8_t io_pb_inited = 0;
-uint64_t io_pb_raw = 0;
+volatile uint64_t io_pb_raw = 0;
 
 #if CONFIG_ESP32_IO_DUAL_EXPANSION
 DECL_ENUMERATION_RANGE("pin", "PC0", ESP32_IO_BASE_C, CONFIG_ESP32_EXP2_IO_COUNT);
 spi_device_handle_t io_pc_handle;
 uint8_t io_pc_inited = 0;
-uint64_t io_pc_raw = 0;
+volatile uint64_t io_pc_raw = 0;
 #endif
 #endif
 
@@ -54,18 +56,18 @@ void gpio_exp_b_init(void)
     spi_bus_config_t busspi = {
         .mosi_io_num = CONFIG_ESP32_EXP_IO_DATA_PIN,
         .miso_io_num = -1,
-        .data0_io_num = -1,
-        .data1_io_num = -1,
-        .data2_io_num = -1,
-        .data3_io_num = -1,
-        .data4_io_num = -1,
-        .data5_io_num = -1,
-        .data6_io_num = -1,
-        .data7_io_num = -1,
+        // .data0_io_num = -1,
+        // .data1_io_num = -1,
+        // .data2_io_num = -1,
+        // .data3_io_num = -1,
+        // .data4_io_num = -1,
+        // .data5_io_num = -1,
+        // .data6_io_num = -1,
+        // .data7_io_num = -1,
         .sclk_io_num = CONFIG_ESP32_EXP_IO_RCLK_PIN,
         .quadhd_io_num = -1,
         .quadwp_io_num = -1,
-        .max_transfer_sz = 8,
+        .max_transfer_sz = 1024,
         .isr_cpu_id = 1,
     };
     spi_device_interface_config_t devcfg = {
@@ -83,12 +85,15 @@ void gpio_exp_b_init(void)
     };
     ESP_ERROR_CHECK(spi_bus_initialize(ESP32_EXP_IO_SPI, &busspi, SPI_DMA_CH_AUTO));
     ESP_ERROR_CHECK(spi_bus_add_device(ESP32_EXP_IO_SPI, &devcfg, &io_pb_handle));
+    io_pb_inited=1;
 }
 
 void gpio_exp_b_flush(void)
 {
-    trans.tx_buffer = &io_pb_raw;
+    uint64_t temp=io_pb_raw;
+    trans.tx_buffer = &temp;
     ESP_ERROR_CHECK(spi_device_queue_trans(io_pb_handle, &trans, 10));
+    ESP_LOGI("GPIO","val:%lld",io_pb_raw);
 }
 #if CONFIG_ESP32_IO_DUAL_EXPANSION
 void gpio_exp_c_init(void)
@@ -111,11 +116,13 @@ void gpio_exp_c_init(void)
         .flags = 0,
     };
     ESP_ERROR_CHECK(spi_bus_add_device(ESP32_EXP_IO_SPI, &devcfg, &io_pb_handle));
+    io_pc_inited=1;
 }
 
 void gpio_exp_c_flush(void)
 {
-    trans.tx_buffer = &io_pc_raw;
+    uint64_t temp=io_pc_raw;
+    trans.tx_buffer = &temp;
     ESP_ERROR_CHECK(spi_device_queue_trans(io_pc_handle, &trans, 10));
 }
 #endif
@@ -128,7 +135,7 @@ struct gpio_out gpio_out_setup(uint32_t pin, uint32_t val)
         .exp = 0,
         .bit = 0,
     };
-    real_pin = pin | ESP32_IO_PIN_MASK;
+    real_pin = pin & ESP32_IO_PIN_MASK;
 
 #if CONFIG_ESP32_IO_EXPANSION
     if (pin & ESP32_IO_BASE_B && real_pin < CONFIG_ESP32_EXP_IO_COUNT)
@@ -139,7 +146,6 @@ struct gpio_out gpio_out_setup(uint32_t pin, uint32_t val)
         }
         ret.exp = 1;
         ret.bit = PIN(real_pin);
-        ret.regs = &io_pb_raw;
         gpio_out_write(ret, val);
     }
     else
@@ -153,7 +159,6 @@ struct gpio_out gpio_out_setup(uint32_t pin, uint32_t val)
             }
             ret.exp = 2;
             ret.bit = PIN(real_pin);
-            ret.regs = &io_pc_raw;
             gpio_out_write(ret, val);
         }
         else
@@ -375,7 +380,7 @@ struct gpio_in gpio_in_setup(uint32_t pin, int32_t pull_up)
             .bit = 0,
             .regs = &GPIO,
         };
-    real_pin = pin | ESP32_IO_PIN_MASK;
+    real_pin = pin & ESP32_IO_PIN_MASK;
     if (pin == real_pin && real_pin < ESP32_IO_MAX_NUM)
     {
         if (PIN(real_pin) & invalid_pins)
