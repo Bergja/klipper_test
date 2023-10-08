@@ -2,6 +2,7 @@
 #define __ESP32_GPIO_H
 
 #include <stdint.h> // uint32_t
+#include "autoconf.h"
 //Simulation
 
 //Tempory Public Defines should be moved to Kconfig Later

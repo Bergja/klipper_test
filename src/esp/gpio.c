@@ -7,7 +7,12 @@
 #include "board/gpio.h"
 #include "command.h"
 #include "driver/gpio.h"
+#include "autoconf.h"
+#if CONFIG_ESP32_EXP_IO_SPI
 #include "driver/spi_master.h"
+#elif CONFIG_ESP32_EXP_IO_I2S
+#include "driver/i2s_std.h"
+#endif
 #include "soc/gpio_struct.h"
 #include "autoconf.h"
 #include "esp_log.h"
@@ -18,7 +23,11 @@
 #define ESP32_IO_PIN_MASK 0xff
 
 #if CONFIG_ESP32_IO_EXPANSION // Pin Expansion With 74HCxx
+#if CONFIG_ESP32_EXP_IO_SPI
 #define ESP32_EXP_IO_SPI HSPI_HOST
+#elif CONFIG_ESP32_EXP_IO_I2S
+#define ESP32_I2S_FREQ 40 * 1000 * 1000 // 40MHz
+#endif
 #endif
 
 #define PIN(x) (1ULL << x)
@@ -32,27 +41,35 @@ gpio_config_t io_config;
 DECL_ENUMERATION_RANGE("pin", "PA0", 0, ESP32_IO_MAX_NUM);
 uint64_t io_pa_raw = 0;
 #if CONFIG_ESP32_IO_EXPANSION
+#if CONFIG_ESP32_EXP_IO_SPI
 static spi_transaction_t trans = {
     .length = 64,
     .flags = 0,
     .rx_buffer = NULL,
-    };
-DECL_ENUMERATION_RANGE("pin", "PB0", ESP32_IO_BASE_B, CONFIG_ESP32_EXP_IO_COUNT);
+};
 spi_device_handle_t io_pb_handle;
-uint8_t io_pb_inited = 0;
 volatile uint64_t io_pb_raw = 0;
+#elif CONFIG_ESP32_EXP_IO_I2S
+static i2s_chan_handle_t io_pb_handle;
+volatile uint32_t io_pb_raw = 0;
+#endif
+DECL_ENUMERATION_RANGE("pin", "PB0", ESP32_IO_BASE_B, CONFIG_ESP32_EXP_IO_COUNT);
+uint8_t io_pb_inited = 0;
 
 #if CONFIG_ESP32_IO_DUAL_EXPANSION
-DECL_ENUMERATION_RANGE("pin", "PC0", ESP32_IO_BASE_C, CONFIG_ESP32_EXP2_IO_COUNT);
+#if CONFIG_ESP32_EXP_IO_SPI
 spi_device_handle_t io_pc_handle;
+DECL_ENUMERATION_RANGE("pin", "PC0", ESP32_IO_BASE_C, CONFIG_ESP32_EXP2_IO_COUNT);
 uint8_t io_pc_inited = 0;
 volatile uint64_t io_pc_raw = 0;
+#endif
 #endif
 #endif
 
 #if CONFIG_ESP32_IO_EXPANSION
 void gpio_exp_b_init(void)
 {
+#if CONFIG_ESP32_EXP_IO_SPI
     spi_bus_config_t busspi = {
         .mosi_io_num = CONFIG_ESP32_EXP_IO_DATA_PIN,
         .miso_io_num = -1,
@@ -85,15 +102,49 @@ void gpio_exp_b_init(void)
     };
     ESP_ERROR_CHECK(spi_bus_initialize(ESP32_EXP_IO_SPI, &busspi, SPI_DMA_CH_AUTO));
     ESP_ERROR_CHECK(spi_bus_add_device(ESP32_EXP_IO_SPI, &devcfg, &io_pb_handle));
-    io_pb_inited=1;
+#elif CONFIG_ESP32_EXP_IO_I2S
+    i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_AUTO, I2S_ROLE_MASTER);
+    ESP_ERROR_CHECK(i2s_new_channel(&chan_cfg, &io_pb_handle, NULL));
+    i2s_std_config_t std_cfg = {
+        .clk_cfg = {
+            .sample_rate_hz = ESP32_I2S_FREQ / 32,
+            .clk_src = I2S_CLK_SRC_DEFAULT,
+            .mclk_multiple = 1,
+        },
+        .gpio_cfg = {
+            .bclk = CONFIG_ESP32_EXP_IO_RCLK_PIN,
+            .dout = CONFIG_ESP32_EXP_IO_DATA_PIN,
+            .din = I2S_GPIO_UNUSED,
+            .mclk = I2S_GPIO_UNUSED,
+            .ws = CONFIG_ESP32_EXP_IO_SCLK_PIN,
+            .invert_flags = {
+                .bclk_inv = false,
+                .mclk_inv = false,
+                .ws_inv = false,
+            },
+        },
+        .slot_cfg = I2S_STD_MSB_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_32BIT, I2S_SLOT_MODE_MONO),
+    };
+    ESP_ERROR_CHECK(i2s_channel_init_std_mode(io_pb_handle, &std_cfg));
+    ESP_ERROR_CHECK(i2s_channel_enable(io_pb_handle));
+#endif
+    io_pb_inited = 1;
 }
 
 void gpio_exp_b_flush(void)
 {
-    uint64_t temp=io_pb_raw;
+#if CONFIG_ESP32_EXP_IO_SPI
+    uint64_t temp = io_pb_raw;
     trans.tx_buffer = &temp;
     ESP_ERROR_CHECK(spi_device_queue_trans(io_pb_handle, &trans, 10));
-    ESP_LOGI("GPIO","val:%lld",io_pb_raw);
+#elif CONFIG_ESP32_EXP_IO_I2S
+    uint32_t temp = io_pb_raw;
+    size_t w_bytes = 4;
+    while (w_bytes == 4)
+    {
+        i2s_channel_write(io_pb_handle, &temp, 4, &w_bytes,10);
+    }
+#endif
 }
 #if CONFIG_ESP32_IO_DUAL_EXPANSION
 void gpio_exp_c_init(void)
@@ -102,6 +153,7 @@ void gpio_exp_c_init(void)
     {
         gpio_exp_b_init();
     }
+#if CONFIG_ESP32_EXP_IO_SPI
     spi_device_interface_config_t devcfg = {
         .clock_speed_hz = SPI_MASTER_FREQ_26M,
         .mode = 0,
@@ -116,14 +168,18 @@ void gpio_exp_c_init(void)
         .flags = 0,
     };
     ESP_ERROR_CHECK(spi_bus_add_device(ESP32_EXP_IO_SPI, &devcfg, &io_pb_handle));
-    io_pc_inited=1;
+#endif
+    io_pc_inited = 1;
 }
 
 void gpio_exp_c_flush(void)
 {
-    uint64_t temp=io_pc_raw;
+#if CONFIG_ESP32_EXP_IO_SPI
+    uint64_t temp = io_pc_raw;
     trans.tx_buffer = &temp;
     ESP_ERROR_CHECK(spi_device_queue_trans(io_pc_handle, &trans, 10));
+
+#endif
 }
 #endif
 #endif
@@ -447,6 +503,3 @@ uint8_t gpio_in_read(struct gpio_in g)
 }
 
 // TODO:  should be moved to other file
-
-
-

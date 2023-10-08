@@ -203,6 +203,9 @@ esp_config:$(OUT)ESP_PREBUILD.o
 	$(Q)$(esp_env) && cd $(OUT)KlipperESPProject/ && idf.py menuconfig
 	$(Q)cp -f $(OUT)KlipperESPProject/sdkconfig src/esp/KlipperESPProject/sdkconfig.defaults.$(ESP_TARGET)
 	$(Q)rm -f $(OUT)ESP_PREBUILD.o
+
+quick:$(OUT)KlipperESPProject/main/libprebuilt.a
+	@echo "Quick Build Done"
 	
 flash:
 	@echo " Flashing into Target"

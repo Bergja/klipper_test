@@ -1,15 +1,12 @@
 # Kconfig settings for ESP32 MCUs
 if MACH_ESP32
-config ESP32_COM_PORT
-    string "COM Port For Flashing ESP32"
-    default "ttyUSB0"
-
 
 config ESP32_SELECT
     bool
     default y
     select ESP32_BOARD_CONFIG
     select ESP32_BOARD_WROOM32
+    select MACH_ESP32_D0WD
     select MACH_ESP32_RAW
     select HAVE_GPIO
     select SERIAL
@@ -22,26 +19,38 @@ config ESP32_BOARD_WROOM32
 
 config MACH_ESP32_RAW
     bool
+    
+    config MACH_ESP32_D0WD
+        bool
+        depends on MACH_ESP32_RAW
 
 config BOARD_DIRECTORY
     string
     default "esp"
-
+menu "Develop Environment Setup"
+config ESP32_COM_PORT
+    prompt "COM Port For Flashing ESP32"
+    string 
+    default "ttyUSB0"
 ######################################################################
 # SDK Path
 ######################################################################
 config PATH_TO_ESP32_IDF
-    string "Path to esp-idf sdk installation"
+    prompt "Path to esp-idf sdk installation"
+    string 
     default "$HOME/ESP32/esp-idf"
+endmenu
 ######################################################################
 # Chip selection
 ######################################################################
 
 choice
     prompt "Chip/Modular Model(Currently Only Adds Support for ESP32-WROOM32E)"
+
     config MACH_ESP32_WROOM32E
         bool "ESP32_WROOM32E"
 endchoice
+menu "Hardware Configuration"
 ######################################################################
 # Timer Clock selection
 ######################################################################
@@ -52,11 +61,12 @@ config CLOCK_FREQ
 ######################################################################
 # Serial Port selection
 ######################################################################
-config ESP32_SERIAL_PORT
+menuconfig ESP32_SERIAL_PORT
     bool "Enable ESP32 Klipper Serial Port"
+if ESP32_SERIAL_PORT
 choice
-    depends on ESP32_SERIAL_PORT
     prompt "Klipper Serial port selection"
+
     config KLIPPER_SERIAL_U0
         bool "UART0"
     config KLIPPER_SERIAL_U1
@@ -68,45 +78,77 @@ endchoice
 config KLIPPER_SERIAL_TXD_PIN
     int "Klipper Serial TXD pin number"
     default 1
-    depends on ESP32_SERIAL_PORT
     
 config KLIPPER_SERIAL_RXD_PIN
     int "Klipper Serial RXD pin number"
     default 21 
-    depends on ESP32_SERIAL_PORT
-
+endif 
 
 ######################################################################
 # IO Expansion selection
 ######################################################################
 
-config ESP32_IO_EXPANSION
+menuconfig ESP32_IO_EXPANSION
     bool "Use 74HC595s as output IO expansion"
-    config ESP32_EXP_IO_DATA_PIN 
-        int "Set output data pin"
-        default 2
-        depends on ESP32_IO_EXPANSION
-    config ESP32_EXP_IO_RCLK_PIN
-        int "Set dataout rclk pin"
-        default 3
-        depends on ESP32_IO_EXPANSION
-    config ESP32_EXP_IO_SCLK_PIN
-        int "Set dataout sclk pin"
-        default 4
-        depends on ESP32_IO_EXPANSION
-    config ESP32_EXP_IO_COUNT
-        int "Total pins expanded(max 64)" 
-        depends on ESP32_IO_EXPANSION
-        default 32
+if ESP32_IO_EXPANSION
+
+choice
+    prompt "Peripheral to Emulate IO expansion function"
+
+    config ESP32_EXP_IO_SPI
+        bool "SPI (max 64 pin per chain)"
+        select ESP_HSPI
+
+    config ESP32_EXP_IO_I2S
+        bool "I2S (max 32 pin)"
+        select ESP_I2S1
+
+endchoice
+
+config ESP32_EXP_IO_DATA_PIN 
+    int "Output DATA pin"
+    default 2
+config ESP32_EXP_IO_RCLK_PIN
+    int "Output RCLK pin"
+    default 3
+config ESP32_EXP_IO_SCLK_PIN
+    int "Output SCLK pin"
+    default 4
+
+config ESP32_EXP_IO_COUNT
+    int 
+    prompt "Pins to expand"
+    default 32
+    range 0 32 if ESP32_EXP_IO_I2S
+    range 0 64 if ESP32_EXP_IO_SPI
+
 config ESP32_IO_DUAL_EXPANSION
-    bool "Setup sencond IO expansion port"
-    depends on ESP32_IO_EXPANSION
-    config ESP32_EXP2_IO_SCLK_PIN
-        int "Set output sclk pin for second expansion unit"
-        depends on ESP32_IO_DUAL_EXPANSION
-        default 32
-    config ESP32_EXP2_IO_COUNT
-        int "Total pins expanded(max 64) for second expansion unit" 
-        depends on ESP32_IO_EXPANSION
-        default 32
+    bool "Enable Sencond IO expansion port"
+    depends on ESP32_EXP_IO_SPI
+
+config ESP32_EXP2_IO_SCLK_PIN
+    int "Output SCLK pin for second expansion unit"
+    depends on ESP32_IO_DUAL_EXPANSION
+    default 32
+config ESP32_EXP2_IO_COUNT
+    int "Pins to expand for second expansion unit" 
+    depends on ESP32_IO_DUAL_EXPANSION
+    default 32
 endif
+endmenu
+if MACH_ESP32_D0WD
+    # SPI
+    config ESP_HSPI
+        bool
+    config ESP_VSPI
+        bool
+    # I2S
+    config ESP_I2S1
+        bool
+    config ESP_I2S2
+        bool
+endif
+
+
+
+endif 
