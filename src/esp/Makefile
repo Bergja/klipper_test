@@ -161,7 +161,8 @@ CFLAGS += -D_GNU_SOURCE -D_POSIX_READER_WRITER_LOCKS
 dirs-y += src/esp src/generic
 
 # peripherals code
-src-y += esp/gpio.c esp/timer.c esp/serial.c esp/pwm.c
+src-y += esp/timer.c esp/serial.c # System Base
+src-y += esp/gpio.c # IO Functions
 src-y += generic/timer_irq.c
 # Main func
 src-y += esp/prebuilt.c

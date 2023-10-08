@@ -11,13 +11,14 @@
 #if CONFIG_ESP32_EXP_IO_SPI
 #include "driver/spi_master.h"
 #elif CONFIG_ESP32_EXP_IO_I2S
+#include "driver/i2s_common.h"
 #include "driver/i2s_std.h"
 #endif
 #include "soc/gpio_struct.h"
 #include "autoconf.h"
 #include "esp_log.h"
 
-#define ESP32_IO_MAX_NUM 39
+#define ESP32_IO_MAX_NUM 40
 #define ESP32_IO_BASE_B 0x100
 #define ESP32_IO_BASE_C 0x200
 #define ESP32_IO_PIN_MASK 0xff
@@ -26,7 +27,7 @@
 #if CONFIG_ESP32_EXP_IO_SPI
 #define ESP32_EXP_IO_SPI HSPI_HOST
 #elif CONFIG_ESP32_EXP_IO_I2S
-#define ESP32_I2S_FREQ 40 * 1000 * 1000 // 40MHz
+#define ESP32_I2S_FREQ (40 * 1000 * 1000) // 40MHz
 #endif
 #endif
 
@@ -107,9 +108,9 @@ void gpio_exp_b_init(void)
     ESP_ERROR_CHECK(i2s_new_channel(&chan_cfg, &io_pb_handle, NULL));
     i2s_std_config_t std_cfg = {
         .clk_cfg = {
-            .sample_rate_hz = ESP32_I2S_FREQ / 32,
+            .sample_rate_hz = ESP32_I2S_FREQ / 64,
             .clk_src = I2S_CLK_SRC_DEFAULT,
-            .mclk_multiple = 1,
+            .mclk_multiple = I2S_MCLK_MULTIPLE_128,
         },
         .gpio_cfg = {
             .bclk = CONFIG_ESP32_EXP_IO_RCLK_PIN,
@@ -127,6 +128,7 @@ void gpio_exp_b_init(void)
     };
     ESP_ERROR_CHECK(i2s_channel_init_std_mode(io_pb_handle, &std_cfg));
     ESP_ERROR_CHECK(i2s_channel_enable(io_pb_handle));
+
 #endif
     io_pb_inited = 1;
 }
@@ -138,11 +140,19 @@ void gpio_exp_b_flush(void)
     trans.tx_buffer = &temp;
     ESP_ERROR_CHECK(spi_device_queue_trans(io_pb_handle, &trans, 10));
 #elif CONFIG_ESP32_EXP_IO_I2S
-    uint32_t temp = io_pb_raw;
+    static uint8_t temp[4];
+    temp[3] = io_pb_raw >> 24;
+    temp[2] = io_pb_raw >> 16;
+    temp[1] = io_pb_raw > 8;
+    temp[0] = io_pb_raw;
+    // static uint32_t temp;
+    // temp=io_pb_raw;
     size_t w_bytes = 4;
+    // ESP_LOGI("gpio_exp","%d",temp[0]);
+
     while (w_bytes == 4)
     {
-        i2s_channel_write(io_pb_handle, &temp, 4, &w_bytes,10);
+        ESP_ERROR_CHECK(i2s_channel_write(io_pb_handle, temp, 4, &w_bytes, 10));
     }
 #endif
 }
@@ -501,5 +511,17 @@ uint8_t gpio_in_read(struct gpio_in g)
         return (((g.bit >> 32) & hw->in1.data) && true);
     }
 }
+#if CONFIG_ESP32_IO_EXPANSION
+void gpio_init(void)
+{
+    io_pb_inited = 0;
+    io_pb_raw = 0;
+#if CONFIG_ESP32_IO_DUAL_EXPANSION
+    io_pc_inited = 0;
+    io_pc_raw = 0;
+#endif
+}
+DECL_INIT(gpio_init);
+#endif
 
 // TODO:  should be moved to other file

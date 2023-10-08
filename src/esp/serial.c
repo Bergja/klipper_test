@@ -127,7 +127,7 @@ static void serial_event_task(void *pvParameters)
 void serial_init(void)
 {
     uart_config_t esp_serial_config = {
-        .baud_rate = 250000,
+        .baud_rate = CONFIG_SERIAL_BAUD,
         .data_bits = UART_DATA_8_BITS,
         .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
         .parity = UART_PARITY_DISABLE,

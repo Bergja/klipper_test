@@ -78,10 +78,12 @@ endchoice
 config KLIPPER_SERIAL_TXD_PIN
     int "Klipper Serial TXD pin number"
     default 1
+    range 0 40
     
 config KLIPPER_SERIAL_RXD_PIN
     int "Klipper Serial RXD pin number"
     default 21 
+    range 0 40
 endif 
 
 ######################################################################
@@ -108,12 +110,15 @@ endchoice
 config ESP32_EXP_IO_DATA_PIN 
     int "Output DATA pin"
     default 2
+    range 0 40
 config ESP32_EXP_IO_RCLK_PIN
     int "Output RCLK pin"
     default 3
+    range 0 40
 config ESP32_EXP_IO_SCLK_PIN
     int "Output SCLK pin"
     default 4
+    range 0 40
 
 config ESP32_EXP_IO_COUNT
     int 
@@ -135,6 +140,51 @@ config ESP32_EXP2_IO_COUNT
     depends on ESP32_IO_DUAL_EXPANSION
     default 32
 endif
+
+menuconfig ESP32_SPI_ENABLE
+    bool "Enable Hardware SPI"
+    depends on !( ESP_HSPI )
+    select HAVE_GPIO_SPI
+if ESP32_SPI_ENABLE
+
+if ! ESP_HSPI
+config ESP_SPI_HSPI
+    bool "Enable HSPI"
+if ESP_SPI_HSPI
+config ESP_HSPI_CS
+    int "HSPI CS Pin"
+    range 0 40
+config ESP_HSPI_CLK
+    int "HSPI CLK Pin"
+    range 0 40
+config ESP_HSPI_MOSI
+    int "HSPI MOSI Pin"
+    range 0 40
+config ESP_HSPI_MISO
+    int "HSPI MISO Pin"
+    range 0 40
+endif
+endif
+if ! ESP_VSPI
+config ESP_SPI_VSPI
+    bool "Enable VSPI(if HSPI also enabled this is spi2)"
+if ESP_SPI_VSPI
+config ESP_VSPI_CS
+    int "VSPI CS Pin"
+    range 0 40
+config ESP_VSPI_CLK
+    int "VSPI CLK Pin"
+    range 0 40
+config ESP_HSPI_MOSI
+    int "VSPI MOSI Pin"
+    range 0 40
+config ESP_HSPI_MISO
+    int "VSPI MISO Pin"
+    range 0 40
+endif
+endif 
+endif
+
 endmenu
 if MACH_ESP32_D0WD
     # SPI
