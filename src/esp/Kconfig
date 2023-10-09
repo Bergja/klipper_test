@@ -98,13 +98,14 @@ choice
     prompt "Peripheral to Emulate IO expansion function"
 
     config ESP32_EXP_IO_SPI
-        bool "SPI (max 64 pin per chain)"
+        bool "SPI ()"
+        help "Using hardware SPI to control 74HC595s IO Expansion, can do maximum 64 pin per chain @ 26MHz/64 refresh rate,can expand more pin through a second cs pin configuration"
         select ESP_HSPI
 
     config ESP32_EXP_IO_I2S
-        bool "I2S (max 32 pin)"
+        bool "I2S"
+        help "Using hardware I2S to control 74HC595s IO Expansion, can do maximum 32 pin at most ,@ 40Mhz/64 refresh rate"
         select ESP_I2S1
-
 endchoice
 
 config ESP32_EXP_IO_DATA_PIN 
@@ -151,9 +152,9 @@ if ! ESP_HSPI
 config ESP_SPI_HSPI
     bool "Enable HSPI"
 if ESP_SPI_HSPI
-config ESP_HSPI_CS
-    int "HSPI CS Pin"
-    range 0 40
+# config ESP_HSPI_CS
+#     int "HSPI CS Pin"
+#     range 0 40
 config ESP_HSPI_CLK
     int "HSPI CLK Pin"
     range 0 40
@@ -169,16 +170,16 @@ if ! ESP_VSPI
 config ESP_SPI_VSPI
     bool "Enable VSPI(if HSPI also enabled this is spi2)"
 if ESP_SPI_VSPI
-config ESP_VSPI_CS
-    int "VSPI CS Pin"
-    range 0 40
+# config ESP_VSPI_CS
+#     int "VSPI CS Pin"
+#     range 0 40
 config ESP_VSPI_CLK
     int "VSPI CLK Pin"
     range 0 40
-config ESP_HSPI_MOSI
+config ESP_VSPI_MOSI
     int "VSPI MOSI Pin"
     range 0 40
-config ESP_HSPI_MISO
+config ESP_VSPI_MISO
     int "VSPI MISO Pin"
     range 0 40
 endif

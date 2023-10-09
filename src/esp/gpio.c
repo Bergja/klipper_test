@@ -523,5 +523,3 @@ void gpio_init(void)
 }
 DECL_INIT(gpio_init);
 #endif
-
-// TODO:  should be moved to other file
