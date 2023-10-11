@@ -113,19 +113,24 @@ inline void spi_prepare(struct spi_config config)
 
 void spi_transfer(struct spi_config config, uint8_t receive_data, uint8_t len, uint8_t *data)
 {
-    spi_transaction_t * rxptr;
-    trans.length = len * 8;
-    trans.tx_buffer = data;
-    if (receive_data)
+    if (config.spi)
     {
-        trans.rxlength = len * 8;
-    }else{
-    trans.rxlength=0;
-    }
-    ESP_ERROR_CHECK(spi_device_transmit((spi_device_handle_t)config.spi, &trans));
-    if (receive_data)
-    {
-        ESP_ERROR_CHECK(spi_device_get_trans_result((spi_device_handle_t)config.spi,&rxptr,100));
-        memcpy(data,trans.rx_buffer,len);
+        spi_transaction_t *rxptr;
+        trans.length = len * 8;
+        trans.tx_buffer = data;
+        if (receive_data)
+        {
+            trans.rxlength = len * 8;
+        }
+        else
+        {
+            trans.rxlength = 0;
+        }
+        ESP_ERROR_CHECK(spi_device_transmit((spi_device_handle_t)config.spi, &trans));
+        if (receive_data)
+        {
+            ESP_ERROR_CHECK(spi_device_get_trans_result((spi_device_handle_t)config.spi, &rxptr, 100));
+            memcpy(data, trans.rx_buffer, len);
+        }
     }
 }

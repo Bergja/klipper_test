@@ -4,10 +4,6 @@ if MACH_ESP32
 config ESP32_SELECT
     bool
     default y
-    select ESP32_BOARD_CONFIG
-    select ESP32_BOARD_WROOM32
-    select MACH_ESP32_D0WD
-    select MACH_ESP32_RAW
     select HAVE_GPIO
     select SERIAL
 
@@ -15,14 +11,18 @@ config ESP32_BOARD_CONFIG
     bool
 
 config ESP32_BOARD_WROOM32
+    select MACH_ESP32_RAW
+    select MACH_ESP32_D0WD
     bool
 
 config MACH_ESP32_RAW
     bool
     
-    config MACH_ESP32_D0WD
-        bool
-        depends on MACH_ESP32_RAW
+config MACH_ESP32_D0WD
+    bool
+    select HAVE_GPIO_HARD_PWM
+    select HAVE_GPIO_ADC
+    depends on MACH_ESP32_RAW
 
 config BOARD_DIRECTORY
     string
@@ -47,8 +47,10 @@ endmenu
 choice
     prompt "Chip/Modular Model(Currently Only Adds Support for ESP32-WROOM32E)"
 
-    config MACH_ESP32_WROOM32E
-        bool "ESP32_WROOM32E"
+config MACH_ESP32_WROOM32E
+    bool "ESP32_WROOM32E"
+    select ESP32_BOARD_CONFIG
+    select ESP32_BOARD_WROOM32
 endchoice
 menu "Hardware Configuration"
 ######################################################################
@@ -185,7 +187,13 @@ config ESP_VSPI_MISO
 endif
 endif 
 endif
-
+choice
+    prompt "ADC Voltage Range Select"
+    config ESP_ADC_RG_FULL
+        bool "Full Range"
+    config ESP_ADC_RG_2V2
+        bool "0-2.2V"
+endchoice
 endmenu
 if MACH_ESP32_D0WD
     # SPI

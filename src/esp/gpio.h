@@ -3,6 +3,8 @@
 
 #include <stdint.h> // uint32_t
 #include "autoconf.h"
+#include "driver/ledc.h"
+#include "esp_adc/adc_oneshot.h"
 //Simulation
 
 //Tempory Public Defines should be moved to Kconfig Later
@@ -28,14 +30,14 @@ void gpio_in_reset(struct gpio_in g, int32_t pull_up);
 uint8_t gpio_in_read(struct gpio_in g);
 
 struct gpio_pwm {
-  void *reg;
+  ledc_channel_t chan;
 };
 struct gpio_pwm gpio_pwm_setup(uint8_t pin, uint32_t cycle_time, uint8_t val);
 void gpio_pwm_write(struct gpio_pwm g, uint32_t val);
 
 struct gpio_adc {
-    void *adc;
-    uint32_t chan;
+    adc_oneshot_unit_handle_t *adc;
+    adc_channel_t chan;
 };
 struct gpio_adc gpio_adc_setup(uint32_t pin);
 uint32_t gpio_adc_sample(struct gpio_adc g);
