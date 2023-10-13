@@ -35,7 +35,7 @@
 const uint64_t strapping_pin = PIN(0) | PIN(2) | PIN(5) | PIN(12) | PIN(15);
 const uint64_t xtal_pin = 0;
 const uint64_t spi_flash_pin = PIN(6) | PIN(7) | PIN(8) | PIN(9) | PIN(10) | PIN(11);
-const uint64_t invalid_pins = strapping_pin | xtal_pin | spi_flash_pin;
+const uint64_t invalid_pins = xtal_pin | spi_flash_pin;
 const uint64_t input_pins = PIN(34) | PIN(35) | PIN(36) | PIN(37) | PIN(38) | PIN(39);
 gpio_config_t io_config;
 
