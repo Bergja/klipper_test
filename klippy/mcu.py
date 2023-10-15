@@ -579,7 +579,7 @@ class MCU:
                     or self._serialport.startswith("/tmp/klipper_host_")):
                 self._baud = config.getint('baud', 250000, minval=2400)
         # Restarts
-        restart_methods = [None, 'arduino', 'cheetah', 'command', 'rpi_usb']
+        restart_methods = [None, 'arduino', 'cheetah', 'command', 'rpi_usb', 'esp']
         self._restart_method = 'command'
         if self._baud:
             rmethods = {m: m for m in restart_methods}
@@ -909,6 +909,10 @@ class MCU:
         logging.info("Attempting MCU '%s' reset", self._name)
         self._disconnect()
         serialhdl.arduino_reset(self._serialport, self._reactor)
+    def _restart_esp(self):
+        logging.info("Attempting MCU '%s' reset", self._name)
+        self._disconnect()
+        serialhdl.esp_reset(self._serialport, self._reactor)
     def _restart_cheetah(self):
         logging.info("Attempting MCU '%s' Cheetah-style reset", self._name)
         self._disconnect()
@@ -947,6 +951,8 @@ class MCU:
             self._restart_via_command()
         elif self._restart_method == 'cheetah':
             self._restart_cheetah()
+        elif self._restart_method == 'esp':
+            self._restart_esp()
         else:
             self._restart_arduino()
     def _firmware_restart_bridge(self):

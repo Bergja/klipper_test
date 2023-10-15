@@ -385,3 +385,16 @@ def arduino_reset(serialport, reactor):
     ser.dtr = False
     reactor.pause(reactor.monotonic() + 0.100)
     ser.close()
+
+# Attempt an esp style reset on a serial port
+def esp_reset(serialport, reactor):
+    # First try opening the port at a different baud
+    ser = serial.Serial(serialport, 2400, timeout=0, exclusive=True)
+    ser.read(1)
+    reactor.pause(reactor.monotonic() + 0.100)
+    # Then toggle DTR
+    ser.rts = True
+    reactor.pause(reactor.monotonic() + 0.100)
+    ser.rts = False
+    reactor.pause(reactor.monotonic() + 0.100)
+    ser.close()

@@ -147,13 +147,15 @@ void gpio_exp_b_flush(void)
     temp[0] = io_pb_raw;
     // static uint32_t temp;
     // temp=io_pb_raw;
-    size_t w_bytes = 4;
-    // ESP_LOGI("gpio_exp","%d",temp[0]);
+    size_t w_bytes = 0;
+    ESP_LOGI("gpio_exp","%d",temp[0]);
 
-    while (w_bytes == 4)
+    while (w_bytes != 4)
     {
         ESP_ERROR_CHECK(i2s_channel_write(io_pb_handle, temp, 4, &w_bytes, 10));
+        ESP_LOGI("gpio_write","%d",w_bytes);
     }
+    ESP_LOGI("gpio_exp_done","%d",temp[0]);
 #endif
 }
 #if CONFIG_ESP32_IO_DUAL_EXPANSION
