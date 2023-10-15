@@ -9,6 +9,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "autoconf.h"
+#include "command.h"
 
 volatile uint8_t esp_irq_stat=1;
 

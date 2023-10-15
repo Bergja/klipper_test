@@ -245,9 +245,6 @@ endif
 
 config MCU
     string
-    default "esp33-d0wd" if MACH_ESP32_D0WD
-
-
-
+    default "esp32-d0wd" if MACH_ESP32_D0WD
 
 endif 
