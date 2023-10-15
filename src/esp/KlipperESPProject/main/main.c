@@ -3,6 +3,9 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_task_wdt.h"
+#include "autoconf.h"
+
+DECL_CONSTANT_STR("MCU", CONFIG_MCU);
 
 void app_main(void)
 {
