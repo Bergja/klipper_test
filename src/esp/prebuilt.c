@@ -13,6 +13,8 @@ volatile uint8_t esp_irq_stat=1;
 
 static const char *TAG = "klipper main";
 
+DECL_CONSTANT_STR("MCU", CONFIG_MCU);
+
 void prebuilt_func(void)
 {
     sched_main();
