@@ -5,6 +5,7 @@
 #include "autoconf.h"
 #include "driver/ledc.h"
 #include "esp_adc/adc_oneshot.h"
+#include "driver/i2c.h"
 //Simulation
 
 //Tempory Public Defines should be moved to Kconfig Later
@@ -54,7 +55,7 @@ void spi_transfer(struct spi_config config, uint8_t receive_data
                   , uint8_t len, uint8_t *data);
 
 struct i2c_config {
-    void *i2c;
+    i2c_port_t i2c;
     uint8_t addr;
 };
 

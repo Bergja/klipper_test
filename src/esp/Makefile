@@ -162,7 +162,8 @@ dirs-y += src/esp src/generic
 
 # peripherals code
 src-y += esp/timer.c esp/serial.c # System Base
-src-y += esp/gpio.c esp/spi.c esp/pwm.c esp/adc.c# IO Functions
+src-y += esp/gpio.c esp/spi.c esp/pwm.c esp/adc.c 
+src-$(CONFIG_HAVE_GPIO_I2C) += esp/i2c.c# IO Functions
 src-y += generic/timer_irq.c
 # Main func
 src-y += esp/prebuilt.c

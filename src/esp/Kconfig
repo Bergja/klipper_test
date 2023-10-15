@@ -143,10 +143,13 @@ config ESP32_EXP2_IO_COUNT
     depends on ESP32_IO_DUAL_EXPANSION
     default 32
 endif
+######################################################################
+# Hardware SPI selection
+######################################################################
 
 menuconfig ESP32_SPI_ENABLE
     bool "Enable Hardware SPI"
-    depends on !( ESP_HSPI )
+    depends on !( ESP_HSPI && ESP_VSPI)
     select HAVE_GPIO_SPI
 if ESP32_SPI_ENABLE
 
@@ -194,6 +197,38 @@ choice
     config ESP_ADC_RG_2V2
         bool "0-2.2V"
 endchoice
+
+######################################################################
+# Hardware I2C Expansion selection
+######################################################################
+menuconfig ESP32_I2C
+    bool "Enable ESP32 Hardware I2C"
+    depends on MACH_ESP32_D0WD
+    select HAVE_GPIO_I2C
+
+if ESP32_I2C
+config ESP32_I2C_0
+    bool "ESP32 I2C bus 0"
+if ESP32_I2C_0
+config ESP32_I2C0_SCL
+    int "I2C0 SCLK"
+    range 0 40
+config ESP32_I2C0_SDA
+    int "I2C0 SDA"
+    range 0 40
+endif
+config ESP32_I2C_1
+    bool "ESP32_I2C bus 1"
+if ESP32_I2C_1
+config ESP32_I2C1_SCL
+    int "I2C1 SCLK"
+    range 0 40
+config ESP32_I2C1_SDA
+    int "I2C1 SDA"
+    range 0 40
+endif
+endif
+
 endmenu
 if MACH_ESP32_D0WD
     # SPI
@@ -207,6 +242,7 @@ if MACH_ESP32_D0WD
     config ESP_I2S2
         bool
 endif
+
 
 
 
