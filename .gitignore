@@ -3,6 +3,8 @@ out
 *.pyc
 .config
 .config.old
+.config.dev
+.config.release
 klippy/.version
 .vscode
 *.code-workspace

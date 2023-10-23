@@ -5,7 +5,7 @@
 // This file may be distributed under the terms of the GNU GPLv3 license.
 
 #include "sched.h"
-#include "esp_log.h"
+#include "internal.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "autoconf.h"
@@ -25,6 +25,6 @@ void prebuilt_func(void)
 
 void shut_down_func(void)
 {
-    ESP_LOGI(TAG,"SYSTEM Shutdown");
+    DEBUGI(TAG,"SYSTEM Shutdown");
 }
 DECL_SHUTDOWN(shut_down_func);

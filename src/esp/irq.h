@@ -8,18 +8,27 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/portmacro.h"
-#include "esp_log.h"
+#include "internal.h"
 
-// static portMUX_TYPE klipper_spinlock = portMUX_INITIALIZER_UNLOCKED;
+static portMUX_TYPE klipper_spinlock = portMUX_INITIALIZER_UNLOCKED;
 extern uint8_t esp_irq_stat;
+static inline void __irq_disable(void)
+{
+    taskENTER_CRITICAL(&klipper_spinlock);
+}
+
+static inline void __irq_enable(void)
+{
+    taskEXIT_CRITICAL(&klipper_spinlock);
+}
 
 static inline void irq_disable(void)
 {
 
-        // taskENTER_CRITICAL(&klipper_spinlock);
+    // taskENTER_CRITICAL(&klipper_spinlock);
     if (esp_irq_stat)
     {
-        // ESP_LOGI("irq","Disabled!");
+        // DEBUGI("irq","Disabled!");
         // taskENTER_CRITICAL(&klipper_spinlock);
         esp_irq_stat = 0;
     }
@@ -27,12 +36,12 @@ static inline void irq_disable(void)
 
 static inline void irq_enable(void)
 {
-        // taskEXIT_CRITICAL(&klipper_spinlock);
+    // taskEXIT_CRITICAL(&klipper_spinlock);
     if (!esp_irq_stat)
     {
         // taskEXIT_CRITICAL(&klipper_spinlock);
         esp_irq_stat = 1;
-        // ESP_LOGI("irq","Enabled!");
+        // DEBUGI("irq","Enabled!");
     }
 }
 

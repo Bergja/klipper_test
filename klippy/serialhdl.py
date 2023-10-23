@@ -392,9 +392,10 @@ def esp_reset(serialport, reactor):
     ser = serial.Serial(serialport, 2400, timeout=0, exclusive=True)
     ser.read(1)
     reactor.pause(reactor.monotonic() + 0.100)
-    # Then toggle DTR
-    ser.rts = True
-    reactor.pause(reactor.monotonic() + 0.100)
+    # Then Enable DTR and toggle rts
+    ser.dtr = True
     ser.rts = False
+    reactor.pause(reactor.monotonic() + 0.100)
+    ser.rts = True
     reactor.pause(reactor.monotonic() + 0.100)
     ser.close()

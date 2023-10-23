@@ -39,6 +39,11 @@ config PATH_TO_ESP32_IDF
     prompt "Path to esp-idf sdk installation"
     string 
     default "$HOME/ESP32/esp-idf"
+
+config DEBUG
+    prompt "Send Debug Information"
+    bool
+    default n
 endmenu
 ######################################################################
 # Chip selection

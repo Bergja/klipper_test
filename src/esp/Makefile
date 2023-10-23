@@ -154,7 +154,7 @@ IDF_INCLUDES-y += -I $(CONFIG_PATH_TO_ESP32_IDF)/components/wifi_provisioning/in
 CFLAGS := $(IDF_INCLUDES-y) $(CFLAGS)
 CFLAGS += -mlongcalls 
 # CFLAGS += -ffunction-sections -fdata-sectionss
-CFLAGS += -DESP_PLATFORM -DIDF_VER="v5.1" -DSOC_MMU_PAGE_SIZE=CONFIG_MMU_PAGE_SIZE
+CFLAGS += -DESP_PLATFORM -DIDF_VER="v5.1.1" -DSOC_MMU_PAGE_SIZE=CONFIG_MMU_PAGE_SIZE
 CFLAGS += -D_GNU_SOURCE -D_POSIX_READER_WRITER_LOCKS
 
 ## common sources
@@ -168,7 +168,7 @@ src-y += generic/timer_irq.c
 # Main func
 src-y += esp/prebuilt.c
 # general functions
-src-y += generic/crc16_ccitt.c generic/alloc.c
+src-y += generic/crc16_ccitt.c esp/alloc.c
 ## board spec sources
 ## chip spec sources
 dirs-$(CONFIG_MACH_ESP32_RAW) += lib/
@@ -210,5 +210,32 @@ quick:$(OUT)KlipperESPProject/main/libprebuilt.a
 	@echo "Quick Build Done"
 	
 flash:
+	make
 	@echo " Flashing into Target"
 	$(Q)$(esp_env) && cd $(OUT)KlipperESPProject/ && idf.py -p $(CONFIG_ESP32_COM_PORT) flash
+
+develop:
+	@echo " Switching to Develop Setup"
+	$(Q)cp -f src/esp/KlipperESPProject/sdkconfig.develop.defaults.esp32 src/esp/KlipperESPProject/sdkconfig.defaults.esp32
+	$(Q)cp -f .config.dev .config
+	make clean
+	make
+
+
+set-develop:
+	@echo " Saving config to Develop Setup"
+	$(Q)cp -f src/esp/KlipperESPProject/sdkconfig.defaults.esp32 src/esp/KlipperESPProject/sdkconfig.develop.defaults.esp32 
+	$(Q)cp -f .config .config.dev
+
+
+release:
+	@echo " Switching to Release Setup"
+	$(Q)cp -f src/esp/KlipperESPProject/sdkconfig.release.defaults.esp32 src/esp/KlipperESPProject/sdkconfig.defaults.esp32
+	$(Q)cp -f .config.release .config
+	make clean
+	make
+
+set-release:
+	@echo " Saving config to Release Setup"
+	$(Q)cp -f src/esp/KlipperESPProject/sdkconfig.defaults.esp32 src/KlipperESPProject/esp/sdkconfig.release.defaults.esp32
+	$(Q)cp -f.config .config.release 

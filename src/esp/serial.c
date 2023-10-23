@@ -16,7 +16,7 @@
 
 #include "board/serial_irq.h" // serial_get_tx_byte
 #include "sched.h"            // DECL_INIT
-#include "esp_log.h"
+#include "internal.h"
 #include "driver/uart.h"
 
 #include "freertos/FreeRTOS.h"
@@ -77,7 +77,7 @@ static inline void serial_rx(void)
             }
         }
         klipper_serial_rx_pos += len;
-        // ESP_LOGI(TAG,"%X",*(klipper_serial_rx_buff+klipper_serial_rx_pos-1));
+        // DEBUGI(TAG, "%X", *(klipper_serial_rx_buff + klipper_serial_rx_pos - 1));
     }
 }
 
@@ -87,36 +87,36 @@ static void serial_event_task(void *pvParameters)
     uart_event_t event;
     for (;;)
     {
-        // ESP_LOGI(TAG, "W");
+        // DEBUGI(TAG, "W");
         // Waiting for UART event.
         if (xQueueReceive(klipper_serial_queue, (void *)&event, (TickType_t)portMAX_DELAY))
         {
-            // ESP_LOGI(TAG, "E");
+            // DEBUGI(TAG, "E");
             switch (event.type)
             {
             // Event of UART receving data
             /*We'd better handler data event fast, there would be much more data events than
             other types of events. If we take too much time on data event, the queue might
             be full.*/
-            case UART_DATA:
             case UART_FIFO_OVF:
             case UART_BUFFER_FULL:
             case UART_PATTERN_DET:
             case UART_BREAK:
+            case UART_DATA:
                 serial_rx();
-                // sched_wake_tasks();
+                break;
                 break;
             // Event of UART parity check error
             case UART_PARITY_ERR:
-                ESP_LOGI(TAG, "uart parity error");
+                DEBUGI(TAG, "uart parity error");
                 break;
             // Event of UART frame error
             case UART_FRAME_ERR:
-                ESP_LOGI(TAG, "uart frame error");
+                DEBUGI(TAG, "uart frame error");
                 break;
             // Others
             default:
-                ESP_LOGI(TAG, "uart event type: %d", event.type);
+                DEBUGI(TAG, "uart event type: %d", event.type);
                 break;
             }
         }
@@ -135,13 +135,16 @@ void serial_init(void)
         .stop_bits = UART_STOP_BITS_1,
         .rx_flow_ctrl_thresh = 122};
     ESP_ERROR_CHECK(uart_param_config(KLIPPER_SERIAL, &esp_serial_config));
-    ESP_LOGI(TAG, "UART_Configured");
+    DEBUGI(TAG, "UART_Configured");
     ESP_ERROR_CHECK(uart_set_pin(KLIPPER_SERIAL, CONFIG_KLIPPER_SERIAL_TXD_PIN, CONFIG_KLIPPER_SERIAL_RXD_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
-    ESP_LOGI(TAG, "UART_Pin_Set");
-    ESP_ERROR_CHECK(uart_driver_install(KLIPPER_SERIAL, RX_BUFFER_SIZE, TX_BUFFER_SIZE, 5, &klipper_serial_queue, ESP_INTR_FLAG_LEVEL1));
+    DEBUGI(TAG, "UART_Pin_Set");
+    ESP_ERROR_CHECK(uart_driver_install(KLIPPER_SERIAL, 2048, TX_BUFFER_SIZE, 5, &klipper_serial_queue, ESP_INTR_FLAG_LEVEL1));
     ESP_ERROR_CHECK(uart_enable_rx_intr(KLIPPER_SERIAL));
     ESP_ERROR_CHECK(uart_set_rx_full_threshold(KLIPPER_SERIAL, 100));
-    xTaskCreatePinnedToCore(&serial_event_task, "serial_event_task", 2048, NULL, 12, NULL, 1);
+    xTaskCreatePinnedToCore(&serial_event_task, "serial_event_task", 2048, NULL, 3, NULL, 1);
+    uint32_t temp;
+    uart_get_baudrate(KLIPPER_SERIAL, &temp);
+    DEBUGI("klipperUart", "Rate:%ld", temp);
     // // Make stdin/stdout non-blocking
     // fcntl(STDIN_FILENO, F_SETFL, fcntl(STDIN_FILENO, F_GETFL, 0) | O_NONBLOCK);
     // fcntl(STDOUT_FILENO, F_SETFL
@@ -160,32 +163,34 @@ void console_sendf(const struct command_encoder *ce, va_list args)
     uint_fast8_t msglen = command_encode_and_frame(klipper_serial_tx_buff, ce, args);
 
     uart_tx_chars(KLIPPER_SERIAL, tx_buff, msglen);
+    // uart_wait_tx_done(KLIPPER_SERIAL,100);
 }
 
 static inline void
 console_pop_input(uint_fast8_t len)
 {
+    __irq_disable();
     uint_fast8_t rpos = readb(&klipper_serial_rx_pos);
     uint_fast8_t needcopy = rpos - len;
     if (needcopy)
     {
-        memmove(&klipper_serial_rx_buff[needcopy], &klipper_serial_rx_buff[needcopy + len], needcopy);
+        memmove(&klipper_serial_rx_buff[0], &klipper_serial_rx_buff[len], needcopy);
     }
     klipper_serial_rx_pos = needcopy;
+    __irq_enable();
     sched_wake_tasks();
 }
 
 // Process Income Commands
 void console_task(void)
 {
-    // serial_rx();
     uint_fast8_t rpos = readb(&klipper_serial_rx_pos), pop_count;
     int_fast8_t ret = command_find_block(klipper_serial_rx_buff, rpos, &pop_count);
     if (ret > 0)
         command_dispatch(klipper_serial_rx_buff, pop_count);
     if (ret)
     {
-        // ESP_LOGI(TAG, "Run%d", ret);
+        // DEBUGI(TAG, "Run%d", ret);
         if (CONFIG_HAVE_BOOTLOADER_REQUEST && ret < 0 && pop_count == 32 && !memcmp(klipper_serial_rx_buff, " \x1c Request Serial Bootloader!! ~", 32))
         {
             bootloader_request();
@@ -195,6 +200,11 @@ void console_task(void)
         {
             command_send_ack();
         }
+        if (ret < 0)
+        {
+            // DEBUGI("klipper", "free%d", RX_BUFFER_SIZE - klipper_serial_rx_pos);
+        }
     }
+    // DEBUGI("klipper", "cmd%d", ret);
 }
 DECL_TASK(console_task);

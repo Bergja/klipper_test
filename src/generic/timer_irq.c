@@ -61,7 +61,6 @@ timer_dispatch_many(void)
             }
             timer_repeat_until = tru = now + TIMER_IDLE_REPEAT_TICKS;
         }
-
         // Next timer in the past or near future - wait for it to be ready
         irq_enable();
         while (unlikely(diff > 0))

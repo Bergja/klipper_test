@@ -55,6 +55,8 @@ uint8_t spi_inited;
 struct spi_config spi_setup(uint32_t bus, uint8_t mode, uint32_t rate)
 {
     struct spi_config ret = {.spi = NULL};
+
+#if CONFIG_ESP32_SPI_ENABLE && (CONFIG_ESP_SPI_HSPI || CONFIG_ESP_SPI_VSPI)
     if (rate > SPI_MASTER_FREQ_26M)
     {
         shutdown("SPI rate too high");
@@ -104,6 +106,7 @@ struct spi_config spi_setup(uint32_t bus, uint8_t mode, uint32_t rate)
         ESP_ERROR_CHECK(spi_bus_add_device(spi_bus[bus], &devcfg, &spi_handle[bus]));
         ret.spi = &spi_handle[bus];
     }
+#endif
     return ret;
 }
 inline void spi_prepare(struct spi_config config)
@@ -113,6 +116,8 @@ inline void spi_prepare(struct spi_config config)
 
 void spi_transfer(struct spi_config config, uint8_t receive_data, uint8_t len, uint8_t *data)
 {
+
+#if CONFIG_ESP32_SPI_ENABLE && (CONFIG_ESP_SPI_HSPI || CONFIG_ESP_SPI_VSPI)
     if (config.spi)
     {
         spi_transaction_t *rxptr;
@@ -133,4 +138,5 @@ void spi_transfer(struct spi_config config, uint8_t receive_data, uint8_t len, u
             memcpy(data, trans.rx_buffer, len);
         }
     }
+#endif
 }
