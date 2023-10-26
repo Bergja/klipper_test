@@ -15,19 +15,19 @@ struct endstop {
     struct timer time;
     struct gpio_in pin;
     uint32_t rest_time, sample_time, nextwake;
-    struct trsync *ts;
+    volatile struct trsync *ts;
     uint8_t flags, sample_count, trigger_count, trigger_reason;
 };
 
 enum { ESF_PIN_HIGH=1<<0, ESF_HOMING=1<<1 };
 
-static uint_fast8_t endstop_oversample_event(struct timer *t);
+static uint_fast8_t endstop_oversample_event(volatile struct timer *t);
 
 // Timer callback for an end stop
 static uint_fast8_t
-endstop_event(struct timer *t)
+endstop_event(volatile struct timer *t)
 {
-    struct endstop *e = container_of(t, struct endstop, time);
+    volatile struct endstop *e = container_of(t, volatile struct endstop, time);
     uint8_t val = gpio_in_read(e->pin);
     uint32_t nextwake = e->time.waketime + e->rest_time;
     if ((val ? ~e->flags : e->flags) & ESF_PIN_HIGH) {
@@ -42,9 +42,9 @@ endstop_event(struct timer *t)
 
 // Timer callback for an end stop that is sampling extra times
 static uint_fast8_t
-endstop_oversample_event(struct timer *t)
+endstop_oversample_event(volatile struct timer *t)
 {
-    struct endstop *e = container_of(t, struct endstop, time);
+    volatile struct endstop *e = container_of(t, volatile struct endstop, time);
     uint8_t val = gpio_in_read(e->pin);
     if ((val ? ~e->flags : e->flags) & ESF_PIN_HIGH) {
         // No longer matching - reschedule for the next attempt
@@ -66,7 +66,7 @@ endstop_oversample_event(struct timer *t)
 void
 command_config_endstop(uint32_t *args)
 {
-    struct endstop *e = oid_alloc(args[0], command_config_endstop, sizeof(*e));
+    volatile struct endstop *e = oid_alloc(args[0], command_config_endstop, sizeof(*e));
     e->pin = gpio_in_setup(args[1], args[2]);
 }
 DECL_COMMAND(command_config_endstop, "config_endstop oid=%c pin=%c pull_up=%c");
@@ -75,7 +75,7 @@ DECL_COMMAND(command_config_endstop, "config_endstop oid=%c pin=%c pull_up=%c");
 void
 command_endstop_home(uint32_t *args)
 {
-    struct endstop *e = oid_lookup(args[0], command_config_endstop);
+    volatile struct endstop *e = oid_lookup(args[0], command_config_endstop);
     sched_del_timer(&e->time);
     e->time.waketime = args[1];
     e->sample_time = args[2];
@@ -92,7 +92,7 @@ command_endstop_home(uint32_t *args)
     e->flags = ESF_HOMING | (args[5] ? ESF_PIN_HIGH : 0);
     e->ts = trsync_oid_lookup(args[6]);
     e->trigger_reason = args[7];
-    sched_add_timer(&e->time);
+    // sched_add_timer(&e->time);
 }
 DECL_COMMAND(command_endstop_home,
              "endstop_home oid=%c clock=%u sample_ticks=%u sample_count=%c"
@@ -102,7 +102,7 @@ void
 command_endstop_query_state(uint32_t *args)
 {
     uint8_t oid = args[0];
-    struct endstop *e = oid_lookup(oid, command_config_endstop);
+    volatile struct endstop *e = oid_lookup(oid, command_config_endstop);
 
     irq_disable();
     uint8_t eflags = e->flags;

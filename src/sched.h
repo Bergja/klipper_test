@@ -13,8 +13,8 @@
 
 // Timer structure for scheduling timed events (see sched_add_timer() )
 struct timer {
-    struct timer *next;
-    uint_fast8_t (*func)(struct timer*);
+    volatile struct timer *volatile next;
+    uint_fast8_t (*func)(volatile struct timer*);
     uint32_t waketime;
 };
 
@@ -26,14 +26,14 @@ struct task_wake {
 };
 
 // sched.c
-void sched_add_timer(struct timer*);
-void sched_del_timer(struct timer *del);
+void sched_add_timer(volatile struct timer *add);
+void sched_del_timer(volatile struct timer *del);
 unsigned int sched_timer_dispatch(void);
 void sched_timer_reset(void);
 void sched_wake_tasks(void);
 uint8_t sched_tasks_busy(void);
-void sched_wake_task(struct task_wake *w);
-uint8_t sched_check_wake(struct task_wake *w);
+void sched_wake_task(volatile struct task_wake *w);
+uint8_t sched_check_wake(volatile struct task_wake *w);
 uint8_t sched_is_shutdown(void);
 void sched_clear_shutdown(void);
 void sched_try_shutdown(uint_fast8_t reason);

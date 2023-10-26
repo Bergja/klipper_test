@@ -4,25 +4,25 @@
 //
 // This file may be distributed under the terms of the GNU GPLv3 license.
 
-#include <setjmp.h> // setjmp
-#include "autoconf.h" // CONFIG_*
-#include "basecmd.h" // stats_update
-#include "board/io.h" // readb
-#include "board/irq.h" // irq_save
+#include <setjmp.h>     // setjmp
+#include "autoconf.h"   // CONFIG_*
+#include "basecmd.h"    // stats_update
+#include "board/io.h"   // readb
+#include "board/irq.h"  // irq_save
 #include "board/misc.h" // timer_from_us
-#include "board/pgm.h" // READP
-#include "command.h" // shutdown
-#include "sched.h" // sched_check_periodic
-#include "stepper.h" // stepper_event
+#include "board/pgm.h"  // READP
+#include "command.h"    // shutdown
+#include "sched.h"      // sched_check_periodic
+#include "stepper.h"    // stepper_event
 
-static struct timer periodic_timer, sentinel_timer, deleted_timer;
+volatile static struct timer periodic_timer, sentinel_timer, deleted_timer;
 
-static volatile struct {
-    struct timer *timer_list, *last_insert;
+volatile static struct
+{
+    volatile struct timer *volatile timer_list, *volatile last_insert;
     int8_t tasks_status;
     uint8_t shutdown_status, shutdown_reason;
 } SchedStatus = {.timer_list = &periodic_timer, .last_insert = &periodic_timer};
-
 
 /****************************************************************
  * Timers
@@ -32,7 +32,7 @@ static volatile struct {
 // always a timer on the timer list and that there is always a timer
 // not far in the future.
 static uint_fast8_t
-periodic_event(struct timer *t)
+periodic_event(volatile struct timer *t)
 {
     // Make sure the stats task runs periodically
     sched_wake_tasks();
@@ -42,7 +42,7 @@ periodic_event(struct timer *t)
     return SF_RESCHEDULE;
 }
 
-static struct timer periodic_timer = {
+volatile static struct timer periodic_timer = {
     .func = periodic_event,
     .next = &sentinel_timer,
 };
@@ -53,26 +53,29 @@ static struct timer periodic_timer = {
 // equal to (periodic_timer.waketime + 0x80000000) any added timer
 // must always have a waketime less than one of these two timers.
 static uint_fast8_t
-sentinel_event(struct timer *t)
+sentinel_event(volatile struct timer *t)
 {
     shutdown("sentinel timer called");
 }
 
-static struct timer sentinel_timer = {
+volatile static struct timer sentinel_timer = {
     .func = sentinel_event,
     .waketime = 0x80000000,
 };
 
 // Find position for a timer in timer_list and insert it
 static void __always_inline
-insert_timer(struct timer *pos, struct timer *t, uint32_t waketime)
+insert_timer(volatile struct timer *pos, volatile struct timer *t, uint32_t waketime)
 {
-    struct timer *prev;
-    for (;;) {
+    volatile struct timer *prev;
+    for (;;)
+    {
         prev = pos;
         if (CONFIG_MACH_AVR)
+        {
             // micro optimization for AVR - reduces register pressure
             asm("" : "+r"(prev));
+        }
         pos = pos->next;
         if (timer_is_before(waketime, pos->waketime))
             break;
@@ -82,13 +85,13 @@ insert_timer(struct timer *pos, struct timer *t, uint32_t waketime)
 }
 
 // Schedule a function call at a supplied time.
-void
-sched_add_timer(struct timer *add)
+void sched_add_timer(volatile struct timer *add)
 {
     uint32_t waketime = add->waketime;
     irqstatus_t flag = irq_save();
-    struct timer *tl = SchedStatus.timer_list;
-    if (unlikely(timer_is_before(waketime, tl->waketime))) {
+    volatile struct timer *tl = SchedStatus.timer_list;
+    if (unlikely(timer_is_before(waketime, tl->waketime)))
+    {
         // This timer is before all other scheduled timers
         if (timer_is_before(waketime, timer_read_time()))
             try_shutdown("Timer too close");
@@ -100,7 +103,9 @@ sched_add_timer(struct timer *add)
         deleted_timer.next = add;
         SchedStatus.timer_list = &deleted_timer;
         timer_kick();
-    } else {
+    }
+    else
+    {
         insert_timer(tl, add, waketime);
     }
     irq_restore(flag);
@@ -108,30 +113,34 @@ sched_add_timer(struct timer *add)
 
 // The deleted timer is used when deleting an active timer.
 static uint_fast8_t
-deleted_event(struct timer *t)
+deleted_event(volatile struct timer *t)
 {
     return SF_DONE;
 }
 
-static struct timer deleted_timer = {
+volatile static struct timer deleted_timer = {
     .func = deleted_event,
 };
 
 // Remove a timer that may be live.
-void
-sched_del_timer(struct timer *del)
+void sched_del_timer(volatile struct timer *del)
 {
     irqstatus_t flag = irq_save();
-    if (SchedStatus.timer_list == del) {
+    if (SchedStatus.timer_list == del)
+    {
         // Deleting the next active timer - replace with deleted_timer
         deleted_timer.waketime = del->waketime;
         deleted_timer.next = del->next;
         SchedStatus.timer_list = &deleted_timer;
-    } else {
+    }
+    else
+    {
         // Find and remove from timer list (if present)
-        struct timer *pos;
-        for (pos = SchedStatus.timer_list; pos->next; pos = pos->next) {
-            if (pos->next == del) {
+        volatile struct timer *pos;
+        for (pos = SchedStatus.timer_list; pos->next; pos = pos->next)
+        {
+            if (pos->next == del)
+            {
                 pos->next = del->next;
                 break;
             }
@@ -146,41 +155,49 @@ sched_del_timer(struct timer *del)
 unsigned int
 sched_timer_dispatch(void)
 {
+    // DEBUGI("sched","dS");
     // Invoke timer callback
-    struct timer *t = SchedStatus.timer_list;
+    volatile struct timer *t = SchedStatus.timer_list;
     uint_fast8_t res;
     uint32_t updated_waketime;
-    if (CONFIG_INLINE_STEPPER_HACK && likely(!t->func)) {
+    if (CONFIG_INLINE_STEPPER_HACK && likely(!t->func))
+    {
         res = stepper_event(t);
         updated_waketime = t->waketime;
-    } else {
+    }
+    else
+    {
         res = t->func(t);
+        // DEBUGI("sched","fE");
         updated_waketime = t->waketime;
     }
 
     // Update timer_list (rescheduling current timer if necessary)
     unsigned int next_waketime = updated_waketime;
-    if (unlikely(res == SF_DONE)) {
+    if (unlikely(res == SF_DONE))
+    {
         next_waketime = t->next->waketime;
         SchedStatus.timer_list = t->next;
         if (SchedStatus.last_insert == t)
             SchedStatus.last_insert = t->next;
-    } else if (!timer_is_before(updated_waketime, t->next->waketime)) {
+    }
+    else if (!timer_is_before(updated_waketime, t->next->waketime))
+    {
         next_waketime = t->next->waketime;
         SchedStatus.timer_list = t->next;
-        struct timer *pos = SchedStatus.last_insert;
+        volatile struct timer *pos = SchedStatus.last_insert;
         if (timer_is_before(updated_waketime, pos->waketime))
             pos = SchedStatus.timer_list;
         insert_timer(pos, t, updated_waketime);
         SchedStatus.last_insert = t;
     }
-
+    // vTaskDelay(1);
+    // DEBUGI("sched","dE");
     return next_waketime;
 }
 
 // Remove all user timers
-void
-sched_timer_reset(void)
+void sched_timer_reset(void)
 {
     SchedStatus.timer_list = &deleted_timer;
     deleted_timer.waketime = periodic_timer.waketime;
@@ -189,18 +206,16 @@ sched_timer_reset(void)
     timer_kick();
 }
 
-
 /****************************************************************
  * Tasks
  ****************************************************************/
 
-#define TS_IDLE      -1
+#define TS_IDLE -1
 #define TS_REQUESTED 0
-#define TS_RUNNING   1
+#define TS_RUNNING 1
 
 // Note that at least one task is ready to run
-void
-sched_wake_tasks(void)
+void sched_wake_tasks(void)
 {
     SchedStatus.tasks_status = TS_REQUESTED;
 }
@@ -213,20 +228,19 @@ sched_tasks_busy(void)
 }
 
 // Note that a task is ready to run
-void
-sched_wake_task(struct task_wake *w)
+void sched_wake_task(volatile struct task_wake *w)
 {
     sched_wake_tasks();
-    writeb(&w->wake, 1);
+    writeb((void*)&w->wake, 1);
 }
 
 // Check if a task is ready to run (as indicated by sched_wake_task)
 uint8_t
-sched_check_wake(struct task_wake *w)
+sched_check_wake(volatile struct task_wake *w)
 {
-    if (!readb(&w->wake))
+    if (!readb((void*)&w->wake))
         return 0;
-    writeb(&w->wake, 0);
+    writeb((void*)&w->wake, 0);
     return 1;
 }
 
@@ -235,16 +249,20 @@ static void
 run_tasks(void)
 {
     uint32_t start = timer_read_time();
-    for (;;) {
+    for (;;)
+    {
         // Check if can sleep
         irq_poll();
-        if (SchedStatus.tasks_status != TS_REQUESTED) {
+        if (SchedStatus.tasks_status != TS_REQUESTED)
+        {
             start -= timer_read_time();
             irq_disable();
-            if (SchedStatus.tasks_status != TS_REQUESTED) {
+            if (SchedStatus.tasks_status != TS_REQUESTED)
+            {
                 // Sleep processor (only run timers) until tasks woken
                 SchedStatus.tasks_status = TS_IDLE;
-                do {
+                do
+                {
                     irq_wait();
                 } while (SchedStatus.tasks_status != TS_REQUESTED);
             }
@@ -264,7 +282,6 @@ run_tasks(void)
     }
 }
 
-
 /****************************************************************
  * Shutdown processing
  ****************************************************************/
@@ -277,8 +294,7 @@ sched_is_shutdown(void)
 }
 
 // Transition out of shutdown state
-void
-sched_clear_shutdown(void)
+void sched_clear_shutdown(void)
 {
     if (!SchedStatus.shutdown_status)
         shutdown("Shutdown cleared when not shutdown");
@@ -303,13 +319,11 @@ run_shutdown(int reason)
     SchedStatus.shutdown_status = 1;
     irq_enable();
 
-    sendf("shutdown clock=%u static_string_id=%hu", cur
-          , SchedStatus.shutdown_reason);
+    sendf("shutdown clock=%u static_string_id=%hu", cur, SchedStatus.shutdown_reason);
 }
 
 // Report the last shutdown reason code
-void
-sched_report_shutdown(void)
+void sched_report_shutdown(void)
 {
     sendf("is_shutdown static_string_id=%hu", SchedStatus.shutdown_reason);
 }
@@ -325,21 +339,18 @@ sched_try_shutdown(uint_fast8_t reason)
 static jmp_buf shutdown_jmp;
 
 // Force the machine to immediately run the shutdown handlers
-void
-sched_shutdown(uint_fast8_t reason)
+void sched_shutdown(uint_fast8_t reason)
 {
     irq_disable();
     longjmp(shutdown_jmp, reason);
 }
-
 
 /****************************************************************
  * Startup
  ****************************************************************/
 
 // Main loop of program
-void
-sched_main(void)
+void sched_main(void)
 {
     extern void ctr_run_initfuncs(void);
     ctr_run_initfuncs();

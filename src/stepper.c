@@ -48,7 +48,7 @@ struct stepper {
     struct gpio_out step_pin, dir_pin;
     uint32_t position;
     struct move_queue_head mq;
-    struct trsync_signal stop_signal;
+    volatile struct trsync_signal stop_signal;
     // gcc (pre v6) does better optimization when uint8_t are bitfields
     uint8_t flags : 8;
 };
@@ -62,7 +62,7 @@ enum {
 
 // Setup a stepper for the next move in its queue
 static uint_fast8_t
-stepper_load_next(struct stepper *s)
+stepper_load_next(volatile struct stepper *s)
 {
     if (move_queue_empty(&s->mq)) {
         // There is no next move - the queue is empty
@@ -71,8 +71,8 @@ stepper_load_next(struct stepper *s)
     }
 
     // Load next 'struct stepper_move' into 'struct stepper'
-    struct move_node *mn = move_queue_pop(&s->mq);
-    struct stepper_move *m = container_of(mn, struct stepper_move, node);
+    volatile struct move_node *mn = move_queue_pop(&s->mq);
+    volatile struct stepper_move *m = container_of(mn, volatile struct stepper_move, node);
     s->add = m->add;
     s->interval = m->interval + m->add;
     if (HAVE_SINGLE_SCHEDULE && s->flags & SF_SINGLE_SCHED) {
@@ -101,9 +101,9 @@ stepper_load_next(struct stepper *s)
 
 // Optimized step function to step on each step pin edge
 uint_fast8_t
-stepper_event_edge(struct timer *t)
+stepper_event_edge(volatile struct timer *t)
 {
-    struct stepper *s = container_of(t, struct stepper, time);
+    volatile struct stepper *s = container_of(t, volatile struct stepper, time);
     gpio_out_toggle_noirq(s->step_pin);
     uint32_t count = s->count - 1;
     if (likely(count)) {
@@ -119,9 +119,9 @@ stepper_event_edge(struct timer *t)
 
 // AVR optimized step function
 static uint_fast8_t
-stepper_event_avr(struct timer *t)
+stepper_event_avr(volatile struct timer *t)
 {
-    struct stepper *s = container_of(t, struct stepper, time);
+    volatile struct stepper *s = container_of(t, volatile struct stepper, time);
     gpio_out_toggle_noirq(s->step_pin);
     uint16_t *pcount = (void*)&s->count, count = *pcount - 1;
     if (likely(count)) {
@@ -139,9 +139,9 @@ stepper_event_avr(struct timer *t)
 
 // Regular "double scheduled" step function
 uint_fast8_t
-stepper_event_full(struct timer *t)
+stepper_event_full(volatile struct timer *t)
 {
-    struct stepper *s = container_of(t, struct stepper, time);
+    volatile struct stepper *s = container_of(t, volatile struct stepper, time);
     gpio_out_toggle_noirq(s->step_pin);
     uint32_t curtime = timer_read_time();
     uint32_t min_next_time = curtime + s->step_pulse_ticks;
@@ -172,7 +172,7 @@ reschedule_min:
 
 // Optimized entry point for step function (may be inlined into sched.c code)
 uint_fast8_t
-stepper_event(struct timer *t)
+stepper_event(volatile struct timer *t)
 {
     if (HAVE_EDGE_OPTIMIZATION)
         return stepper_event_edge(t);
@@ -184,7 +184,7 @@ stepper_event(struct timer *t)
 void
 command_config_stepper(uint32_t *args)
 {
-    struct stepper *s = oid_alloc(args[0], command_config_stepper, sizeof(*s));
+    volatile struct stepper *s = oid_alloc(args[0], command_config_stepper, sizeof(*s));
     int_fast8_t invert_step = args[3];
     s->flags = invert_step > 0 ? SF_INVERT_STEP : 0;
     s->step_pin = gpio_out_setup(args[1], s->flags & SF_INVERT_STEP);
@@ -210,7 +210,7 @@ DECL_COMMAND(command_config_stepper, "config_stepper oid=%c step_pin=%c"
              " dir_pin=%c invert_step=%c step_pulse_ticks=%u");
 
 // Return the 'struct stepper' for a given stepper oid
-static struct stepper *
+volatile static struct stepper *
 stepper_oid_lookup(uint8_t oid)
 {
     return oid_lookup(oid, command_config_stepper);
@@ -220,8 +220,8 @@ stepper_oid_lookup(uint8_t oid)
 void
 command_queue_step(uint32_t *args)
 {
-    struct stepper *s = stepper_oid_lookup(args[0]);
-    struct stepper_move *m = move_alloc();
+    volatile struct stepper *s = stepper_oid_lookup(args[0]);
+    volatile struct stepper_move *m = move_alloc();
     m->interval = args[1];
     m->count = args[2];
     if (!m->count)
@@ -244,7 +244,7 @@ command_queue_step(uint32_t *args)
         s->flags = flags;
         move_queue_push(&m->node, &s->mq);
         stepper_load_next(s);
-        sched_add_timer(&s->time);
+        // sched_add_timer(&s->time);
     }
     irq_enable();
 }
@@ -255,7 +255,7 @@ DECL_COMMAND(command_queue_step,
 void
 command_set_next_step_dir(uint32_t *args)
 {
-    struct stepper *s = stepper_oid_lookup(args[0]);
+    volatile struct stepper *s = stepper_oid_lookup(args[0]);
     uint8_t nextdir = args[1] ? SF_NEXT_DIR : 0;
     irq_disable();
     s->flags = (s->flags & ~SF_NEXT_DIR) | nextdir;
@@ -267,7 +267,7 @@ DECL_COMMAND(command_set_next_step_dir, "set_next_step_dir oid=%c dir=%c");
 void
 command_reset_step_clock(uint32_t *args)
 {
-    struct stepper *s = stepper_oid_lookup(args[0]);
+    volatile struct stepper *s = stepper_oid_lookup(args[0]);
     uint32_t waketime = args[1];
     irq_disable();
     if (s->count)
@@ -280,7 +280,7 @@ DECL_COMMAND(command_reset_step_clock, "reset_step_clock oid=%c clock=%u");
 
 // Return the current stepper position.  Caller must disable irqs.
 static uint32_t
-stepper_get_position(struct stepper *s)
+stepper_get_position(volatile struct stepper *s)
 {
     uint32_t position = s->position;
     // If stepper is mid-move, subtract out steps not yet taken
@@ -299,7 +299,7 @@ void
 command_stepper_get_position(uint32_t *args)
 {
     uint8_t oid = args[0];
-    struct stepper *s = stepper_oid_lookup(oid);
+    volatile struct stepper *s = stepper_oid_lookup(oid);
     irq_disable();
     uint32_t position = stepper_get_position(s);
     irq_enable();
@@ -309,7 +309,7 @@ DECL_COMMAND(command_stepper_get_position, "stepper_get_position oid=%c");
 
 // Stop all moves for a given stepper (caller must disable IRQs)
 static void
-stepper_stop(struct trsync_signal *tss, uint8_t reason)
+stepper_stop(volatile struct trsync_signal *tss, uint8_t reason)
 {
     struct stepper *s = container_of(tss, struct stepper, stop_signal);
     sched_del_timer(&s->time);
@@ -321,8 +321,8 @@ stepper_stop(struct trsync_signal *tss, uint8_t reason)
     if (!(HAVE_EDGE_OPTIMIZATION && s->flags & SF_SINGLE_SCHED))
         gpio_out_write(s->step_pin, s->flags & SF_INVERT_STEP);
     while (!move_queue_empty(&s->mq)) {
-        struct move_node *mn = move_queue_pop(&s->mq);
-        struct stepper_move *m = container_of(mn, struct stepper_move, node);
+        volatile struct move_node *mn = move_queue_pop(&s->mq);
+        volatile struct stepper_move *m = container_of(mn, volatile struct stepper_move, node);
         move_free(m);
     }
 }
@@ -331,8 +331,8 @@ stepper_stop(struct trsync_signal *tss, uint8_t reason)
 void
 command_stepper_stop_on_trigger(uint32_t *args)
 {
-    struct stepper *s = stepper_oid_lookup(args[0]);
-    struct trsync *ts = trsync_oid_lookup(args[1]);
+    volatile struct stepper *s = stepper_oid_lookup(args[0]);
+    volatile struct trsync *ts = trsync_oid_lookup(args[1]);
     trsync_add_signal(ts, &s->stop_signal, stepper_stop);
 }
 DECL_COMMAND(command_stepper_stop_on_trigger,
@@ -342,7 +342,7 @@ void
 stepper_shutdown(void)
 {
     uint8_t i;
-    struct stepper *s;
+    volatile struct stepper *s;
     foreach_oid(i, s, command_config_stepper) {
         move_queue_clear(&s->mq);
         stepper_stop(&s->stop_signal, 0);

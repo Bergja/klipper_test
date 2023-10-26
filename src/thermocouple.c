@@ -36,7 +36,7 @@ enum {
     TS_PENDING = 1,
 };
 
-static struct task_wake thermocouple_wake;
+volatile static struct task_wake thermocouple_wake;
 
 static uint_fast8_t thermocouple_event(struct timer *timer) {
     struct thermocouple_spi *spi = container_of(
@@ -78,7 +78,7 @@ command_query_thermocouple(uint32_t *args)
     spi->max_value = args[4];
     spi->max_invalid = args[5];
     spi->invalid_count = 0;
-    sched_add_timer(&spi->timer);
+    // sched_add_timer(&spi->timer);
 }
 DECL_COMMAND(command_query_thermocouple,
              "query_thermocouple oid=%c clock=%u rest_ticks=%u"

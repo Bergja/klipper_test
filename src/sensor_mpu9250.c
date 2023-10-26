@@ -56,7 +56,7 @@ enum {
     AX_HAVE_START = 1<<0, AX_RUNNING = 1<<1, AX_PENDING = 1<<2,
 };
 
-static struct task_wake mpu9250_wake;
+volatile static struct task_wake mpu9250_wake;
 
 // Reads the fifo byte count from the device.
 static uint16_t
@@ -118,7 +118,7 @@ mp9250_reschedule_timer(struct mpu9250 *mp)
 {
     irq_disable();
     mp->timer.waketime = timer_read_time() + mp->rest_ticks;
-    sched_add_timer(&mp->timer);
+    // sched_add_timer(&mp->timer);
     irq_enable();
 }
 
@@ -240,7 +240,7 @@ command_query_mpu9250(uint32_t *args)
     mp->data_count = 0;
     mp->fifo_max = 0;
     mp->fifo_pkts_bytes = 0;
-    sched_add_timer(&mp->timer);
+    // sched_add_timer(&mp->timer);
 }
 DECL_COMMAND(command_query_mpu9250,
              "query_mpu9250 oid=%c clock=%u rest_ticks=%u");

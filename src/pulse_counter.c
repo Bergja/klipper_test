@@ -24,12 +24,12 @@ enum {
     CF_PENDING = 1,
 };
 
-static struct task_wake counter_wake;
+volatile static struct task_wake counter_wake;
 
 static uint_fast8_t
-counter_event(struct timer *timer)
+counter_event(volatile struct timer *timer)
 {
-    struct counter *c = container_of(timer, struct counter, timer);
+    volatile struct counter *c = container_of(timer, volatile struct counter, timer);
 
     uint32_t time = c->timer.waketime;
     uint8_t last_value = c->count & 1;
@@ -53,7 +53,7 @@ counter_event(struct timer *timer)
 void
 command_config_counter(uint32_t *args)
 {
-    struct counter *c = oid_alloc(
+    volatile struct counter *c = oid_alloc(
         args[0], command_config_counter, sizeof(*c));
     c->pin = gpio_in_setup(args[1], args[2]);
     c->timer.func = counter_event;
@@ -64,13 +64,13 @@ DECL_COMMAND(command_config_counter,
 void
 command_query_counter(uint32_t *args)
 {
-    struct counter *c = oid_lookup(args[0], command_config_counter);
+    volatile struct counter *c = oid_lookup(args[0], command_config_counter);
     sched_del_timer(&c->timer);
     c->timer.waketime = args[1];
     c->poll_ticks = args[2];
     c->sample_ticks = args[3];
     c->next_sample_time = c->timer.waketime; // sample immediately
-    sched_add_timer(&c->timer);
+    // sched_add_timer(&c->timer);
 }
 DECL_COMMAND(command_query_counter,
              "query_counter oid=%c clock=%u poll_ticks=%u sample_ticks=%u");
@@ -82,7 +82,7 @@ counter_task(void)
         return;
 
     uint8_t oid;
-    struct counter *c;
+    volatile struct counter *c;
     foreach_oid(oid, c, command_config_counter) {
         if (!(c->flags & CF_PENDING))
             continue;

@@ -44,7 +44,7 @@ ndelay(uint32_t nsecs)
 
 // Write eight bits to the st7920 via the serial interface
 static void
-st7920_xmit_byte(struct st7920 *s, uint8_t data)
+st7920_xmit_byte(volatile struct st7920 *s, uint8_t data)
 {
     struct gpio_out sclk = s->sclk, sid = s->sid;
     uint8_t i;
@@ -63,7 +63,7 @@ st7920_xmit_byte(struct st7920 *s, uint8_t data)
 
 // Transmit a series of command bytes to the chip
 static void
-st7920_xmit(struct st7920 *s, uint8_t count, uint8_t *cmds)
+st7920_xmit(volatile struct st7920 *s, uint8_t count, uint8_t *cmds)
 {
     if (!count)
         return;
@@ -101,7 +101,7 @@ st7920_xmit(struct st7920 *s, uint8_t count, uint8_t *cmds)
 void
 command_config_st7920(uint32_t *args)
 {
-    struct st7920 *s = oid_alloc(args[0], command_config_st7920, sizeof(*s));
+    volatile struct st7920 *s = oid_alloc(args[0], command_config_st7920, sizeof(*s));
     s->sclk = gpio_out_setup(args[2], 0);
     s->sid = gpio_out_setup(args[3], 0);
     gpio_out_setup(args[1], 1);
@@ -135,7 +135,7 @@ DECL_COMMAND(command_config_st7920,
 void
 command_st7920_send_cmds(uint32_t *args)
 {
-    struct st7920 *s = oid_lookup(args[0], command_config_st7920);
+    volatile struct st7920 *s = oid_lookup(args[0], command_config_st7920);
     st7920_xmit_byte(s, SYNC_CMD);
     uint8_t len = args[1], *cmds = command_decode_ptr(args[2]);
     st7920_xmit(s, len, cmds);
@@ -145,7 +145,7 @@ DECL_COMMAND(command_st7920_send_cmds, "st7920_send_cmds oid=%c cmds=%*s");
 void
 command_st7920_send_data(uint32_t *args)
 {
-    struct st7920 *s = oid_lookup(args[0], command_config_st7920);
+    volatile struct st7920 *s = oid_lookup(args[0], command_config_st7920);
     st7920_xmit_byte(s, SYNC_DATA);
     uint8_t len = args[1], *data = command_decode_ptr(args[2]);
     st7920_xmit(s, len, data);
@@ -156,7 +156,7 @@ void
 st7920_shutdown(void)
 {
     uint8_t i;
-    struct st7920 *s;
+    volatile struct st7920 *s;
     foreach_oid(i, s, command_config_st7920) {
         gpio_out_write(s->sclk, 0);
         gpio_out_write(s->sid, 0);

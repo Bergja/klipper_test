@@ -12,7 +12,7 @@
 #include "sched.h" // sched_add_timer
 
 struct digital_out_s {
-    struct timer timer;
+    volatile struct timer timer;
     uint32_t on_duration, off_duration, end_time;
     struct gpio_out pin;
     uint32_t max_duration, cycle_time;
@@ -29,13 +29,13 @@ enum {
     DF_ON=1<<0, DF_TOGGLING=1<<1, DF_CHECK_END=1<<2, DF_DEFAULT_ON=1<<4
 };
 
-static uint_fast8_t digital_load_event(struct timer *timer);
+static uint_fast8_t digital_load_event(volatile struct timer *timer);
 
 // Software PWM toggle event
 static uint_fast8_t
-digital_toggle_event(struct timer *timer)
+digital_toggle_event(volatile struct timer *timer)
 {
-    struct digital_out_s *d = container_of(timer, struct digital_out_s, timer);
+    volatile struct digital_out_s *d = container_of(timer, struct digital_out_s, timer);
     gpio_out_toggle_noirq(d->pin);
     d->flags ^= DF_ON;
     uint32_t waketime = d->timer.waketime;
@@ -54,14 +54,14 @@ digital_toggle_event(struct timer *timer)
 
 // Load next pin output setting
 static uint_fast8_t
-digital_load_event(struct timer *timer)
+digital_load_event(volatile struct timer *timer)
 {
     // Apply next update and remove it from queue
-    struct digital_out_s *d = container_of(timer, struct digital_out_s, timer);
+    volatile struct digital_out_s *d = container_of(timer, struct digital_out_s, timer);
     if (move_queue_empty(&d->mq))
         shutdown("Missed scheduling of next digital out event");
-    struct move_node *mn = move_queue_pop(&d->mq);
-    struct digital_move *m = container_of(mn, struct digital_move, node);
+    volatile struct move_node *mn = move_queue_pop(&d->mq);
+    volatile struct digital_move *m = container_of(mn, volatile struct digital_move, node);
     uint32_t on_duration = m->on_duration;
     uint8_t flags = on_duration ? DF_ON : 0;
     gpio_out_write(d->pin, flags);
@@ -83,8 +83,8 @@ digital_load_event(struct timer *timer)
         }
     }
     if (!move_queue_empty(&d->mq)) {
-        struct move_node *nn = move_queue_first(&d->mq);
-        uint32_t wake = container_of(nn, struct digital_move, node)->waketime;
+        volatile struct move_node *nn = move_queue_first(&d->mq);
+        volatile uint32_t wake = container_of(nn, volatile struct digital_move, node)->waketime;
         if (flags & DF_CHECK_END && timer_is_before(end_time, wake))
             shutdown("Scheduled digital out event will exceed max_duration");
         end_time = wake;
@@ -116,8 +116,8 @@ digital_load_event(struct timer *timer)
 void
 command_config_digital_out(uint32_t *args)
 {
-    struct gpio_out pin = gpio_out_setup(args[1], !!args[2]);
-    struct digital_out_s *d = oid_alloc(args[0], command_config_digital_out
+    volatile struct gpio_out pin = gpio_out_setup(args[1], !!args[2]);
+    volatile struct digital_out_s *d = oid_alloc(args[0], command_config_digital_out
                                         , sizeof(*d));
     d->pin = pin;
     d->flags = (args[2] ? DF_ON : 0) | (args[3] ? DF_DEFAULT_ON : 0);
@@ -131,7 +131,7 @@ DECL_COMMAND(command_config_digital_out,
 void
 command_set_digital_out_pwm_cycle(uint32_t *args)
 {
-    struct digital_out_s *d = oid_lookup(args[0], command_config_digital_out);
+    volatile struct digital_out_s *d = oid_lookup(args[0], command_config_digital_out);
     irq_disable();
     if (!move_queue_empty(&d->mq))
         shutdown("Can not set soft pwm cycle ticks while updates pending");
@@ -144,13 +144,13 @@ DECL_COMMAND(command_set_digital_out_pwm_cycle,
 void
 command_queue_digital_out(uint32_t *args)
 {
-    struct digital_out_s *d = oid_lookup(args[0], command_config_digital_out);
-    struct digital_move *m = move_alloc();
+    volatile struct digital_out_s *d = oid_lookup(args[0], command_config_digital_out);
+    volatile struct digital_move *m = move_alloc();
     uint32_t time = m->waketime = args[1];
     m->on_duration = args[2];
 
     irq_disable();
-    int first_on_queue = move_queue_push(&m->node, &d->mq);
+    int first_on_queue = move_queue_push((struct move_node*)&m->node, &d->mq);
     if (!first_on_queue) {
         irq_enable();
         return;
@@ -167,7 +167,7 @@ command_queue_digital_out(uint32_t *args)
         sched_del_timer(&d->timer);
         d->timer.waketime = time;
         d->timer.func = digital_load_event;
-        sched_add_timer(&d->timer);
+        // sched_add_timer(&d->timer);
     }
     irq_enable();
 }
@@ -177,7 +177,7 @@ DECL_COMMAND(command_queue_digital_out,
 void
 command_update_digital_out(uint32_t *args)
 {
-    struct digital_out_s *d = oid_lookup(args[0], command_config_digital_out);
+    volatile struct digital_out_s *d = oid_lookup(args[0], command_config_digital_out);
     sched_del_timer(&d->timer);
     if (!move_queue_empty(&d->mq))
         shutdown("update_digital_out not valid with active queue");
@@ -187,7 +187,7 @@ command_update_digital_out(uint32_t *args)
         d->timer.waketime = d->end_time = timer_read_time() + d->max_duration;
         d->timer.func = digital_load_event;
         d->flags = (flags & DF_DEFAULT_ON) | on_flag | DF_CHECK_END;
-        sched_add_timer(&d->timer);
+        // sched_add_timer(&d->timer);
     } else {
         d->flags = (flags & DF_DEFAULT_ON) | on_flag;
     }
@@ -198,7 +198,7 @@ void
 digital_out_shutdown(void)
 {
     uint8_t i;
-    struct digital_out_s *d;
+    volatile struct digital_out_s *d;
     foreach_oid(i, d, command_config_digital_out) {
         gpio_out_write(d->pin, d->flags & DF_DEFAULT_ON);
         d->flags = d->flags & DF_DEFAULT_ON ? DF_ON | DF_DEFAULT_ON : 0;

@@ -15,17 +15,17 @@
 struct trsync {
     struct timer report_time, expire_time;
     uint32_t report_ticks;
-    struct trsync_signal *signals;
+    volatile struct trsync_signal *signals;
     uint8_t flags, trigger_reason, expire_reason;
 };
 
 enum { TSF_CAN_TRIGGER=1<<0, TSF_REPORT=1<<2 };
 
-static struct task_wake trsync_wake;
+volatile static struct task_wake trsync_wake;
 
 // Activate a trigger (caller must disable IRQs)
 void
-trsync_do_trigger(struct trsync *ts, uint8_t reason)
+trsync_do_trigger(volatile struct trsync *ts, uint8_t reason)
 {
     uint8_t flags = ts->flags;
     if (!(flags & TSF_CAN_TRIGGER))
@@ -34,7 +34,7 @@ trsync_do_trigger(struct trsync *ts, uint8_t reason)
     ts->flags = (flags & ~TSF_CAN_TRIGGER) | TSF_REPORT;
     // Dispatch signals
     while (ts->signals) {
-        struct trsync_signal *tss = ts->signals;
+        volatile struct trsync_signal *tss = ts->signals;
         trsync_callback_t func = tss->func;
         ts->signals = tss->next;
         tss->next = NULL;
@@ -46,18 +46,18 @@ trsync_do_trigger(struct trsync *ts, uint8_t reason)
 
 // Timeout handler
 static uint_fast8_t
-trsync_expire_event(struct timer *t)
+trsync_expire_event(volatile struct timer *t)
 {
-    struct trsync *ts = container_of(t, struct trsync, expire_time);
+    volatile struct trsync *ts = container_of(t, volatile struct trsync, expire_time);
     trsync_do_trigger(ts, ts->expire_reason);
     return SF_DONE;
 }
 
 // Report handler
 static uint_fast8_t
-trsync_report_event(struct timer *t)
+trsync_report_event(volatile struct timer *t)
 {
-    struct trsync *ts = container_of(t, struct trsync, report_time);
+    volatile struct trsync *ts = container_of(t, volatile struct trsync, report_time);
     ts->flags |= TSF_REPORT;
     sched_wake_task(&trsync_wake);
     ts->report_time.waketime += ts->report_ticks;
@@ -67,14 +67,14 @@ trsync_report_event(struct timer *t)
 void
 command_config_trsync(uint32_t *args)
 {
-    struct trsync *ts = oid_alloc(args[0], command_config_trsync, sizeof(*ts));
+    volatile struct trsync *ts = oid_alloc(args[0], command_config_trsync, sizeof(*ts));
     ts->report_time.func = trsync_report_event;
     ts->expire_time.func = trsync_expire_event;
 }
 DECL_COMMAND(command_config_trsync, "config_trsync oid=%c");
 
 // Return the 'struct trsync' for a given trsync oid
-struct trsync *
+volatile struct trsync *
 trsync_oid_lookup(uint8_t oid)
 {
     return oid_lookup(oid, command_config_trsync);
@@ -82,7 +82,7 @@ trsync_oid_lookup(uint8_t oid)
 
 // Add a callback to invoke on a trigger
 void
-trsync_add_signal(struct trsync *ts, struct trsync_signal *tss
+trsync_add_signal(volatile struct trsync *ts, volatile struct trsync_signal *tss
                   , trsync_callback_t func)
 {
     irqstatus_t flag = irq_save();
@@ -96,13 +96,13 @@ trsync_add_signal(struct trsync *ts, struct trsync_signal *tss
 
 // Disable trigger and unregister any signal handlers (caller must disable IRQs)
 static void
-trsync_clear(struct trsync *ts)
+trsync_clear(volatile struct trsync *ts)
 {
     sched_del_timer(&ts->report_time);
     sched_del_timer(&ts->expire_time);
-    struct trsync_signal *tss = ts->signals;
+    volatile struct trsync_signal *tss = ts->signals;
     while (tss) {
-        struct trsync_signal *next = tss->next;
+        volatile struct trsync_signal *next = tss->next;
         tss->func = NULL;
         tss->next = NULL;
         tss = next;
@@ -114,14 +114,15 @@ trsync_clear(struct trsync *ts)
 void
 command_trsync_start(uint32_t *args)
 {
-    struct trsync *ts = trsync_oid_lookup(args[0]);
+    volatile struct trsync *ts = trsync_oid_lookup(args[0]);
     irq_disable();
     trsync_clear(ts);
     ts->flags = TSF_CAN_TRIGGER;
     ts->report_time.waketime = args[1];
     ts->report_ticks = args[2];
     if (ts->report_ticks)
-        sched_add_timer(&ts->report_time);
+    {}
+        // sched_add_timer(&ts->report_time);
     ts->expire_reason = args[3];
     irq_enable();
 }
@@ -132,13 +133,13 @@ DECL_COMMAND(command_trsync_start,
 void
 command_trsync_set_timeout(uint32_t *args)
 {
-    struct trsync *ts = trsync_oid_lookup(args[0]);
+    volatile struct trsync *ts = trsync_oid_lookup(args[0]);
     irq_disable();
     uint8_t flags = ts->flags;
     if (flags & TSF_CAN_TRIGGER) {
         sched_del_timer(&ts->expire_time);
         ts->expire_time.waketime = args[1];
-        sched_add_timer(&ts->expire_time);
+        // sched_add_timer(&ts->expire_time);
     }
     irq_enable();
 }
@@ -155,7 +156,7 @@ void
 command_trsync_trigger(uint32_t *args)
 {
     uint8_t oid = args[0];
-    struct trsync *ts = trsync_oid_lookup(oid);
+    volatile struct trsync *ts = trsync_oid_lookup(oid);
     irq_disable();
     trsync_do_trigger(ts, args[1]);
     sched_del_timer(&ts->report_time);
@@ -173,7 +174,7 @@ trsync_task(void)
     if (!sched_check_wake(&trsync_wake))
         return;
     uint8_t oid;
-    struct trsync *ts;
+    volatile struct trsync *ts;
     foreach_oid(oid, ts, command_config_trsync) {
         if (!(ts->flags & TSF_REPORT))
             continue;
@@ -192,7 +193,7 @@ void
 trsync_shutdown(void)
 {
     uint8_t oid;
-    struct trsync *ts;
+    volatile struct trsync *ts;
     foreach_oid(oid, ts, command_config_trsync) {
         trsync_clear(ts);
     }

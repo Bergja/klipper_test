@@ -7,25 +7,18 @@
 #include "board/misc.h" // dynmem_start
 #include "internal.h"
 
-static char dynmem_pool[20 * 1024];
+volatile static char dynmem_pool[20 * 1024]={0};
 
 // Return the start of memory available for dynamic allocations
 void *
 dynmem_start(void)
 {
-    if(dynmem_pool>(&dynmem_pool[sizeof(dynmem_pool)])){
-        DEBUGI("KlipperMem","Reverse");
-        return &dynmem_pool[sizeof(dynmem_pool)];
-    }
-    return dynmem_pool;
+    return (void*)dynmem_pool;
 }
 
 // Return the end of memory available for dynamic allocations
 void *
 dynmem_end(void)
 {
-    if(dynmem_pool>(&dynmem_pool[sizeof(dynmem_pool)])){
-        return dynmem_pool;
-    }
-    return &dynmem_pool[sizeof(dynmem_pool)];
+    return (void*)&dynmem_pool[sizeof(dynmem_pool)-10];
 }

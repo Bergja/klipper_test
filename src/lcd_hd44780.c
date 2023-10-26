@@ -60,7 +60,7 @@ hd44780_xmit_bits(uint8_t toggle, struct gpio_out e, struct gpio_out d4
 
 // Transmit 8 bits to the chip
 static void
-hd44780_xmit_byte(struct hd44780 *h, uint8_t data)
+hd44780_xmit_byte(volatile struct hd44780 *h, uint8_t data)
 {
     struct gpio_out e = h->e, d4 = h->d4, d5 = h->d5, d6 = h->d6, d7 = h->d7;
     hd44780_xmit_bits(h->last ^ data, e, d4, d5, d6, d7);
@@ -71,7 +71,7 @@ hd44780_xmit_byte(struct hd44780 *h, uint8_t data)
 
 // Transmit a series of bytes to the chip
 static void
-hd44780_xmit(struct hd44780 *h, uint8_t len, uint8_t *data)
+hd44780_xmit(volatile struct hd44780 *h, uint8_t len, uint8_t *data)
 {
     uint32_t last_cmd_time=h->last_cmd_time, cmd_wait_ticks=h->cmd_wait_ticks;
     while (len--) {
@@ -92,7 +92,7 @@ hd44780_xmit(struct hd44780 *h, uint8_t len, uint8_t *data)
 void
 command_config_hd44780(uint32_t *args)
 {
-    struct hd44780 *h = oid_alloc(args[0], command_config_hd44780, sizeof(*h));
+    volatile struct hd44780 *h = oid_alloc(args[0], command_config_hd44780, sizeof(*h));
     h->rs = gpio_out_setup(args[1], 0);
     h->e = gpio_out_setup(args[2], 0);
     h->d4 = gpio_out_setup(args[3], 0);
@@ -122,7 +122,7 @@ DECL_COMMAND(command_config_hd44780,
 void
 command_hd44780_send_cmds(uint32_t *args)
 {
-    struct hd44780 *h = oid_lookup(args[0], command_config_hd44780);
+    volatile struct hd44780 *h = oid_lookup(args[0], command_config_hd44780);
     gpio_out_write(h->rs, 0);
     uint8_t len = args[1], *cmds = command_decode_ptr(args[2]);
     hd44780_xmit(h, len, cmds);
@@ -132,7 +132,7 @@ DECL_COMMAND(command_hd44780_send_cmds, "hd44780_send_cmds oid=%c cmds=%*s");
 void
 command_hd44780_send_data(uint32_t *args)
 {
-    struct hd44780 *h = oid_lookup(args[0], command_config_hd44780);
+    volatile struct hd44780 *h = oid_lookup(args[0], command_config_hd44780);
     gpio_out_write(h->rs, 1);
     uint8_t len = args[1], *data = command_decode_ptr(args[2]);
     hd44780_xmit(h, len, data);
@@ -143,7 +143,7 @@ void
 hd44780_shutdown(void)
 {
     uint8_t i;
-    struct hd44780 *h;
+    volatile struct hd44780 *h;
     foreach_oid(i, h, command_config_hd44780) {
         gpio_out_write(h->rs, 0);
         gpio_out_write(h->e, 0);

@@ -39,18 +39,22 @@ timer_kick(void)
 void timer_dispatch_task(void *pvParameters)
 {
     uint8_t ret;
-    uint64_t current;
+    uint64_t current,nextcount;
+    static uint64_t previous=0;
     uint32_t next = 100;
     uint32_t ccurrent;
-    uint8_t max_timer_queue=0;
+    uint8_t max_timer_queue = 0;
+    DEBUGI("TimerTask", "Enter");
     for (;;)
     {
         if (xQueueReceive(timer_dispatch_queue, (void *)&ret, (TickType_t)portMAX_DELAY))
         {
-            if(timer_requested>max_timer_queue){
-                max_timer_queue=timer_requested;
-                if(max_timer_queue>1){
-                    DEBUGI("klipperTimer","MaxQue%d",max_timer_queue);
+            if (timer_requested + 1 > max_timer_queue)
+            {
+                max_timer_queue = timer_requested + 1;
+                if (max_timer_queue > 1)
+                {
+                    DEBUGI("klipperTimer", "MaxQue%d", max_timer_queue);
                 }
             }
             if (timer_requested)
@@ -58,19 +62,24 @@ void timer_dispatch_task(void *pvParameters)
                 ESP_ERROR_CHECK(gptimer_get_raw_count(hgptimer, &current));
                 next = timer_dispatch_many();
                 ccurrent = current;
-                if (next > ccurrent)
+                nextcount=current;
+                if (next > previous)
                 {
-                    current += next - ccurrent;
+                    nextcount+= next - ccurrent;
                 }
                 else
                 {
-                    current += (uint64_t)next - ccurrent + 0x100000000;
+                    nextcount += (uint64_t)next + 0x100000000 - ccurrent ;
                 }
-                agptimer.alarm_count = current;
+                previous=current;
+                agptimer.alarm_count = nextcount;
                 ESP_ERROR_CHECK(gptimer_set_alarm_action(hgptimer, &agptimer));
             }
+            if (timer_requested)
+            {
+                timer_requested -= 1;
+            }
         }
-        timer_requested = 0;
     }
     DEBUGI("TimerTask", "Exit");
     vTaskDelay(10);
@@ -78,7 +87,7 @@ void timer_dispatch_task(void *pvParameters)
 }
 IRAM_ATTR static bool timer_isr(gptimer_handle_t timer, const gptimer_alarm_event_data_t *edata, void *user_ctx)
 {
-    if (timer_requested<ESP_TIMER_QUEUE_MAX)
+    if (timer_requested < ESP_TIMER_QUEUE_MAX)
     {
         timer_requested++;
         xQueueSendFromISR(timer_dispatch_queue, &tempret, pdFALSE);
@@ -87,7 +96,7 @@ IRAM_ATTR static bool timer_isr(gptimer_handle_t timer, const gptimer_alarm_even
 }
 void timer_init(void)
 {
-    timer_dispatch_queue = xQueueCreate(1, 1);
+    timer_dispatch_queue = xQueueCreate(ESP_TIMER_QUEUE_MAX, sizeof(uint8_t));
     timer_requested = 0;
     DEBUGI(TAG, "Creating Timer");
     gptimer_config_t timer_config = {
@@ -106,7 +115,7 @@ void timer_init(void)
     ESP_ERROR_CHECK(gptimer_start(hgptimer));
     ESP_ERROR_CHECK(gptimer_set_raw_count(hgptimer, 0));
     timer_kick();
-    xTaskCreatePinnedToCore(&timer_dispatch_task, "Timer Dispatch Task", 10240, NULL, 2, NULL, 1);
+    xTaskCreatePinnedToCore(&timer_dispatch_task, "Timer Dispatch Task", 10240, NULL, 3, NULL, 1);
 }
 DECL_INIT(timer_init);
 
@@ -117,6 +126,6 @@ timer_read_time(void)
     uint64_t cnt;
     uint32_t ret;
     ESP_ERROR_CHECK(gptimer_get_raw_count(hgptimer, &cnt));
-    ret = cnt;
+    ret = (cnt & 0xffffffff);
     return ret;
 }

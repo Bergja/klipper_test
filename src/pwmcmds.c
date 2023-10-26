@@ -26,18 +26,18 @@ struct pwm_move {
 };
 
 static uint_fast8_t
-pwm_end_event(struct timer *timer)
+pwm_end_event(volatile struct timer *timer)
 {
     shutdown("Missed scheduling of next hard pwm event");
 }
 
 static uint_fast8_t
-pwm_event(struct timer *timer)
+pwm_event(volatile struct timer *timer)
 {
     // Apply next update and remove it from queue
-    struct pwm_out_s *p = container_of(timer, struct pwm_out_s, timer);
-    struct move_node *mn = move_queue_pop(&p->mq);
-    struct pwm_move *m = container_of(mn, struct pwm_move, node);
+    volatile struct pwm_out_s *p = container_of(timer, volatile struct pwm_out_s, timer);
+    volatile struct move_node *mn = move_queue_pop(&p->mq);
+    volatile struct pwm_move *m = container_of(mn, volatile struct pwm_move, node);
     uint16_t value = m->value;
     gpio_pwm_write(p->pin, value);
     move_free(m);
@@ -54,8 +54,8 @@ pwm_event(struct timer *timer)
     }
 
     // Schedule next update
-    struct move_node *nn = move_queue_first(&p->mq);
-    uint32_t wake = container_of(nn, struct pwm_move, node)->waketime;
+    volatile struct move_node *nn = move_queue_first(&p->mq);
+    uint32_t wake = container_of(nn, volatile struct pwm_move, node)->waketime;
     if (value != p->default_value && p->max_duration
         && timer_is_before(p->timer.waketime + p->max_duration, wake))
         shutdown("Scheduled pwm event will exceed max_duration");
@@ -67,7 +67,7 @@ void
 command_config_pwm_out(uint32_t *args)
 {
     struct gpio_pwm pin = gpio_pwm_setup(args[1], args[2], args[3]);
-    struct pwm_out_s *p = oid_alloc(args[0], command_config_pwm_out
+    volatile struct pwm_out_s *p = oid_alloc(args[0], command_config_pwm_out
                                     , sizeof(*p));
     p->pin = pin;
     p->default_value = args[4];
@@ -82,8 +82,8 @@ DECL_COMMAND(command_config_pwm_out,
 void
 command_queue_pwm_out(uint32_t *args)
 {
-    struct pwm_out_s *p = oid_lookup(args[0], command_config_pwm_out);
-    struct pwm_move *m = move_alloc();
+    volatile struct pwm_out_s *p = oid_lookup(args[0], command_config_pwm_out);
+    volatile struct pwm_move *m = move_alloc();
     m->waketime = args[1];
     m->value = args[2];
 
@@ -100,7 +100,7 @@ command_queue_pwm_out(uint32_t *args)
         shutdown("Scheduled pwm event will exceed max_duration");
     p->timer.func = pwm_event;
     p->timer.waketime = m->waketime;
-    sched_add_timer(&p->timer);
+    // sched_add_timer(&p->timer);
 }
 DECL_COMMAND(command_queue_pwm_out, "queue_pwm_out oid=%c clock=%u value=%hu");
 
@@ -108,7 +108,7 @@ void
 pwm_shutdown(void)
 {
     uint8_t i;
-    struct pwm_out_s *p;
+    volatile struct pwm_out_s *p;
     foreach_oid(i, p, command_config_pwm_out) {
         gpio_pwm_write(p->pin, p->default_value);
         p->timer.func = pwm_event;

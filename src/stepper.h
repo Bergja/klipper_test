@@ -3,6 +3,6 @@
 
 #include <stdint.h> // uint8_t
 
-uint_fast8_t stepper_event(struct timer *t);
+uint_fast8_t stepper_event(volatile struct timer *t);
 
 #endif // stepper.h

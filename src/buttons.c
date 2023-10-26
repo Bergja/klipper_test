@@ -22,12 +22,12 @@ struct buttons {
 
 enum { BF_NO_RETRANSMIT = 0x80, BF_PENDING = 0xff, BF_ACKED = 0xfe };
 
-static struct task_wake buttons_wake;
+volatile static struct task_wake buttons_wake;
 
 static uint_fast8_t
-buttons_event(struct timer *t)
+buttons_event(volatile struct timer *t)
 {
-    struct buttons *b = container_of(t, struct buttons, time);
+    volatile struct buttons *b = container_of(t, volatile struct buttons, time);
 
     // Read pins
     uint8_t i, bit, status = 0;
@@ -75,7 +75,7 @@ command_config_buttons(uint32_t *args)
     uint8_t button_count = args[1];
     if (button_count > 8)
         shutdown("Max of 8 buttons");
-    struct buttons *b = oid_alloc(
+    volatile struct buttons *b = oid_alloc(
         args[0], command_config_buttons
         , sizeof(*b) + sizeof(b->pins[0]) * button_count);
     b->button_count = button_count;
@@ -86,7 +86,7 @@ DECL_COMMAND(command_config_buttons, "config_buttons oid=%c button_count=%c");
 void
 command_buttons_add(uint32_t *args)
 {
-    struct buttons *b = oid_lookup(args[0], command_config_buttons);
+    volatile struct buttons *b = oid_lookup(args[0], command_config_buttons);
     uint8_t pos = args[1];
     if (pos >= b->button_count)
         shutdown("Set button past maximum button count");
@@ -98,7 +98,7 @@ DECL_COMMAND(command_buttons_add,
 void
 command_buttons_query(uint32_t *args)
 {
-    struct buttons *b = oid_lookup(args[0], command_config_buttons);
+    volatile struct buttons *b = oid_lookup(args[0], command_config_buttons);
     sched_del_timer(&b->time);
     b->time.waketime = args[1];
     b->rest_ticks = args[2];
@@ -110,7 +110,7 @@ command_buttons_query(uint32_t *args)
         shutdown("Invalid buttons retransmit count");
     if (! b->rest_ticks)
         return;
-    sched_add_timer(&b->time);
+    // sched_add_timer(&b->time);
 }
 DECL_COMMAND(command_buttons_query,
              "buttons_query oid=%c clock=%u rest_ticks=%u retransmit_count=%c"
@@ -119,7 +119,7 @@ DECL_COMMAND(command_buttons_query,
 void
 command_buttons_ack(uint32_t *args)
 {
-    struct buttons *b = oid_lookup(args[0], command_config_buttons);
+    volatile struct buttons *b = oid_lookup(args[0], command_config_buttons);
     uint8_t count = args[1];
     b->ack_count += count;
     irq_disable();
@@ -142,7 +142,7 @@ buttons_task(void)
     if (!sched_check_wake(&buttons_wake))
         return;
     uint8_t oid;
-    struct buttons *b;
+    volatile struct buttons *b;
     foreach_oid(oid, b, command_config_buttons) {
         // See if need to transmit buttons_state
         if (b->retransmit_state != BF_PENDING)

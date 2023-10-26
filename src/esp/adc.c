@@ -10,7 +10,6 @@
 #include "esp_adc/adc_cali.h"
 #include "esp_adc/adc_cali_scheme.h"
 #include "sched.h"
-#include "esp_log.h"
 #include "board/irq.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
@@ -22,43 +21,29 @@ const uint64_t adc_pin = PIN(32) | PIN(33) | PIN(34) | PIN(35) | PIN(36) | PIN(3
 adc_oneshot_unit_handle_t adc_handle;
 adc_cali_handle_t adc_cali;
 volatile uint8_t adc_inited;
-QueueHandle_t adc_request_queue;
-volatile int adc_val[16]={0};
-int adc_lastval[16]={0};
+volatile QueueHandle_t adc_request_queue;
+volatile int adc_val[16] = {0};
+volatile int adc_lastval[16] = {0};
 volatile uint8_t adc_ready = 0;
 volatile uint8_t adc_quested = 0;
-const adc_channel_t adc_chn[] = {
-    ADC_CHANNEL_0,
-    ADC_CHANNEL_1,
-    ADC_CHANNEL_2,
-    ADC_CHANNEL_3,
-    ADC_CHANNEL_4,
-    ADC_CHANNEL_5,
-    ADC_CHANNEL_6,
-    ADC_CHANNEL_7,
-};
 
 DECL_CONSTANT("ADC_MAX", 4095);
 
 static void adc_event_task(void *pvParameters)
 {
-    adc_channel_t chan;
+    static adc_channel_t chan;
     int ret;
-    while (!adc_inited)
-    {
-        vTaskDelay(10);
-    }
-    DEBUGI("klipperADC", "inited");
     for (;;)
     {
-        if (xQueueReceive(adc_request_queue, (void *)&chan, (TickType_t)portMAX_DELAY))
+        if (xQueueReceive(adc_request_queue, &chan, (TickType_t)portMAX_DELAY))
         {
-            if (chan < 8)
+            // DEBUGI("KlipperADC", "chn;%d", chan);
+            if (adc_inited & PIN(chan))
             {
                 ESP_ERROR_CHECK(adc_oneshot_get_calibrated_result(adc_handle, adc_cali, chan, &ret));
                 adc_val[chan] = ret;
                 adc_ready |= PIN(chan);
-                DEBUGI("KlipperADC","val;%d",adc_val[chan]);
+                // DEBUGI("KlipperADC", "chn:%lld,val;%d", PIN(chan),adc_val[chan]);
             }
         }
     }
@@ -109,6 +94,7 @@ static bool gpio_adc_calibration_init(adc_unit_t unit, adc_atten_t atten, adc_ca
 
 void gpio_adc_init(void)
 {
+    DEBUGI("klipper ADC", "Initfunc");
     adc_oneshot_unit_init_cfg_t init_cfg = {
         .clk_src = ADC_DIGI_CLK_SRC_DEFAULT,
         .unit_id = ADC_UNIT_1,
@@ -117,8 +103,8 @@ void gpio_adc_init(void)
     adc_inited = 0;
     adc_ready = 0;
     adc_quested = 0;
-    adc_request_queue = xQueueCreate(16, 4);
-    xTaskCreatePinnedToCore(&adc_event_task, "ADC Task", 2048, NULL, 3, NULL, 1);
+    adc_request_queue = xQueueCreate(16, sizeof(adc_channel_t));
+    xTaskCreatePinnedToCore(&adc_event_task, "ADC Task", 2048, NULL, 4, NULL, 1);
 }
 DECL_INIT(gpio_adc_init);
 
@@ -171,11 +157,15 @@ struct gpio_adc gpio_adc_setup(uint32_t pin)
             ESP_ERROR_CHECK(adc_oneshot_config_channel(*(ret.adc), ret.chan, &adc_chn_cfg));
             if (!adc_inited)
             {
-                adc_inited = 1;
+                adc_inited = PIN(ret.chan);
                 if (!gpio_adc_calibration_init(ADC_UNIT_1, adc_chn_cfg.atten, &adc_cali))
                 {
                     ESP_ERROR_CHECK(ESP_FAIL);
                 }
+            }
+            else
+            {
+                adc_inited |= PIN(ret.chan);
             }
             DEBUGI("klipperADC:", "Pin%ld", pin);
         }
@@ -184,51 +174,71 @@ struct gpio_adc gpio_adc_setup(uint32_t pin)
     {
         shutdown("Invalid ADC pin");
     }
-    return (struct gpio_adc){.chan = pin};
+    return ret;
 }
 
 uint32_t gpio_adc_sample(struct gpio_adc g)
 {
-    if (adc_quested & PIN(g.chan))
+    if (adc_inited & PIN(g.chan))
     {
-        if(adc_ready & PIN(g.chan)){
-            return 0;
+        if (adc_quested & PIN(g.chan))
+        {
+            if (adc_ready & PIN(g.chan))
+            {
+                return 0;
+            }
+            return 50;
         }
-        return 1000;
+        else
+        {
+            adc_ready &= !PIN(g.chan);
+            adc_quested |= PIN(g.chan);
+            xQueueSend(adc_request_queue, (void *)&g.chan, 0);
+            return 70;
+        }
     }
-    else
-    {
-        adc_ready &= !PIN(g.chan);
-        adc_quested |= PIN(g.chan);
-        xQueueSend(adc_request_queue, (void *)&adc_chn[g.chan], portMAX_DELAY);
-    }
-    return 1000;
+    DEBUGI("klipperADC", "ready:%x,quested:%x", adc_ready, adc_quested);
+    return 60;
 }
 
 uint16_t gpio_adc_read(struct gpio_adc g)
 {
-    uint16_t temp;
-    if (!(adc_quested & PIN(g.chan)))
+    uint16_t temp = 0;
+
+    if (g.chan < 8 && (adc_inited & PIN(g.chan)))
     {
-        adc_ready &= !PIN(g.chan);
-        adc_quested |= PIN(g.chan);
-        xQueueSend(adc_request_queue, (void *)&adc_chn[g.chan], portMAX_DELAY);
+        if (!(adc_quested & PIN(g.chan)))
+        {
+            adc_ready &= !PIN(g.chan);
+            adc_quested |= PIN(g.chan);
+            xQueueSend(adc_request_queue, (void *)&g.chan, 0);
+            temp = (double)adc_lastval[g.chan] * 4095.0 / 2180.0;
+        }
+        else
+        {
+            if ((adc_ready & PIN(g.chan)))
+            {
+                temp = (double)adc_val[g.chan] * 4095.0 / 2180.0;
+                adc_lastval[g.chan] = adc_val[g.chan];
+                adc_quested &= !PIN(g.chan);
+            }
+            else
+            {
+                temp = (double)adc_lastval[g.chan] * 4095.0 / 2180.0;
+                DEBUGI("klipperADCNoT", "ready:%x,quested:%x", adc_ready, adc_quested);
+            }
+        }
     }
-    if ((adc_ready & PIN(g.chan)))
-    {
-        temp = (double)adc_val[g.chan] * 4095.0 / 2180.0;
-        adc_lastval[g.chan]=adc_val[g.chan];
-    }
-    else
-    {
-        temp=(double)adc_lastval[g.chan]*4095.0/2180.0;
-    }
-    adc_quested &= !PIN(g.chan);
     return temp;
 }
 
 void gpio_adc_cancel_sample(struct gpio_adc g)
 {
-    // Do nothing
+    if (adc_inited & PIN(g.chan))
+    {
+        if (adc_ready & PIN(g.chan))
+        {
+            adc_ready &= !PIN(g.chan);
+        }
+    }
 }
-

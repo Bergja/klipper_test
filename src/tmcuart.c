@@ -27,11 +27,11 @@ enum {
     TU_REPORT = 1<<3, TU_PULLUP = 1<<4, TU_SINGLE_WIRE = 1<<5
 };
 
-static struct task_wake tmcuart_wake;
+volatile static struct task_wake tmcuart_wake;
 
 // Restore uart line to normal "idle" mode
 static void
-tmcuart_reset_line(struct tmcuart_s *t)
+tmcuart_reset_line(volatile struct tmcuart_s *t)
 {
     if (t->flags & TU_SINGLE_WIRE)
         gpio_out_reset(t->tx_pin, 1);
@@ -42,7 +42,7 @@ tmcuart_reset_line(struct tmcuart_s *t)
 
 // Helper function to end a transmission and schedule a response
 static uint_fast8_t
-tmcuart_finalize(struct tmcuart_s *t)
+tmcuart_finalize(volatile struct tmcuart_s *t)
 {
     tmcuart_reset_line(t);
     t->flags |= TU_REPORT;
@@ -52,9 +52,9 @@ tmcuart_finalize(struct tmcuart_s *t)
 
 // Event handler for reading uart bits
 static uint_fast8_t
-tmcuart_read_event(struct timer *timer)
+tmcuart_read_event(volatile struct timer *timer)
 {
-    struct tmcuart_s *t = container_of(timer, struct tmcuart_s, timer);
+    volatile struct tmcuart_s *t = container_of(timer, volatile struct tmcuart_s, timer);
     uint8_t v = gpio_in_read(t->rx_pin);
     // Read and store bit
     uint8_t pos = t->pos, mask = 1 << (pos & 0x07), data = t->data[pos >> 3];
@@ -73,9 +73,9 @@ tmcuart_read_event(struct timer *timer)
 
 // Event handler for detecting start of data reception
 static uint_fast8_t
-tmcuart_read_sync_event(struct timer *timer)
+tmcuart_read_sync_event(volatile struct timer *timer)
 {
-    struct tmcuart_s *t = container_of(timer, struct tmcuart_s, timer);
+    volatile struct tmcuart_s *t = container_of(timer, volatile struct tmcuart_s, timer);
     uint8_t v = gpio_in_read(t->rx_pin);
     if (v) {
         t->flags |= TU_READ_SYNC;
@@ -96,9 +96,9 @@ tmcuart_read_sync_event(struct timer *timer)
 
 // Event handler called at end of uart writing
 static uint_fast8_t
-tmcuart_send_finish_event(struct timer *timer)
+tmcuart_send_finish_event(volatile struct timer *timer)
 {
-    struct tmcuart_s *t = container_of(timer, struct tmcuart_s, timer);
+    volatile struct tmcuart_s *t = container_of(timer, volatile struct tmcuart_s, timer);
     if (!t->read_count)
         // This is a tx only operation - success
         return tmcuart_finalize(t);
@@ -113,9 +113,9 @@ tmcuart_send_finish_event(struct timer *timer)
 
 // Event handler for sending uart bits
 static uint_fast8_t
-tmcuart_send_event(struct timer *timer)
+tmcuart_send_event(volatile struct timer *timer)
 {
-    struct tmcuart_s *t = container_of(timer, struct tmcuart_s, timer);
+    volatile struct tmcuart_s *t = container_of(timer, volatile struct tmcuart_s, timer);
     // Toggle uart output
     gpio_out_toggle_noirq(t->tx_pin);
     t->flags ^= TU_LINE_HIGH;
@@ -143,9 +143,9 @@ tmcuart_send_event(struct timer *timer)
 
 // Event handler for sending sync nibble with enhanced baud detection
 static uint_fast8_t
-tmcuart_send_sync_event(struct timer *timer)
+tmcuart_send_sync_event(volatile struct timer *timer)
 {
-    struct tmcuart_s *t = container_of(timer, struct tmcuart_s, timer);
+    volatile struct tmcuart_s *t = container_of(timer, volatile struct tmcuart_s, timer);
     // Toggle uart output and note toggle time
     gpio_out_toggle_noirq(t->tx_pin);
     uint32_t cur = timer_read_time();
@@ -172,7 +172,7 @@ tmcuart_send_sync_event(struct timer *timer)
 void
 command_config_tmcuart(uint32_t *args)
 {
-    struct tmcuart_s *t = oid_alloc(args[0], command_config_tmcuart
+    volatile struct tmcuart_s *t = oid_alloc(args[0], command_config_tmcuart
                                     , sizeof(*t));
     uint8_t pull_up = args[2];
     uint32_t rx_pin = args[1], tx_pin = args[3];
@@ -190,7 +190,7 @@ DECL_COMMAND(command_config_tmcuart,
 void
 command_tmcuart_send(uint32_t *args)
 {
-    struct tmcuart_s *t = oid_lookup(args[0], command_config_tmcuart);
+    volatile struct tmcuart_s *t = oid_lookup(args[0], command_config_tmcuart);
     if (t->flags & TU_ACTIVE)
         // Uart is busy - silently drop this request (host should retransmit)
         return;
@@ -199,7 +199,7 @@ command_tmcuart_send(uint32_t *args)
     uint8_t read_len = args[3];
     if (write_len > sizeof(t->data) || read_len > sizeof(t->data))
         shutdown("tmcuart data too large");
-    memcpy(t->data, write, write_len);
+    memcpy((void*)t->data, write, write_len);
     t->pos = 0;
     t->flags = (t->flags & (TU_LINE_HIGH|TU_PULLUP|TU_SINGLE_WIRE)) | TU_ACTIVE;
     t->write_count = write_len * 8;
@@ -212,7 +212,7 @@ command_tmcuart_send(uint32_t *args)
     }
     irq_disable();
     t->timer.waketime = timer_read_time() + timer_from_us(200);
-    sched_add_timer(&t->timer);
+    // sched_add_timer(&t->timer);
     irq_enable();
 }
 DECL_COMMAND(command_tmcuart_send, "tmcuart_send oid=%c write=%*s read=%c");
@@ -224,7 +224,7 @@ tmcuart_task(void)
     if (!sched_check_wake(&tmcuart_wake))
         return;
     uint8_t oid;
-    struct tmcuart_s *t;
+    volatile struct tmcuart_s *t;
     foreach_oid(oid, t, command_config_tmcuart) {
         if (!(t->flags & TU_REPORT))
             continue;
@@ -241,7 +241,7 @@ void
 tmcuart_shutdown(void)
 {
     uint8_t i;
-    struct tmcuart_s *t;
+    volatile struct tmcuart_s *t;
     foreach_oid(i, t, command_config_tmcuart) {
         tmcuart_reset_line(t);
     }

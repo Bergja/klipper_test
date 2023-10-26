@@ -11,7 +11,7 @@
 #include "internal.h"
 
 static portMUX_TYPE klipper_spinlock = portMUX_INITIALIZER_UNLOCKED;
-extern uint8_t esp_irq_stat;
+extern volatile uint8_t esp_irq_stat;
 static inline void __irq_disable(void)
 {
     taskENTER_CRITICAL(&klipper_spinlock);

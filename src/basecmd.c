@@ -17,7 +17,7 @@
  * Low level allocation
  ****************************************************************/
 
-static void *alloc_end;
+static void *volatile alloc_end;
 
 void
 alloc_init(void)
@@ -58,10 +58,10 @@ alloc_chunks(size_t size, size_t count, uint16_t *avail)
  * Move queue
  ****************************************************************/
 
-static struct move_node *move_free_list;
-static void *move_list;
-static uint16_t move_count;
-static uint8_t move_item_size;
+volatile static struct move_node *move_free_list;
+volatile static void *move_list;
+volatile static uint16_t move_count;
+volatile static uint8_t move_item_size;
 
 // Is the config and move queue finalized?
 static int
@@ -73,19 +73,19 @@ is_finalized(void)
 // Free previously allocated storage from move_alloc(). Caller must
 // disable irqs.
 void
-move_free(void *m)
+move_free(volatile void *m)
 {
-    struct move_node *mf = m;
+    volatile struct move_node *mf = m;
     mf->next = move_free_list;
     move_free_list = mf;
 }
 
 // Allocate runtime storage
-void *
+volatile void *
 move_alloc(void)
 {
     irqstatus_t flag = irq_save();
-    struct move_node *mf = move_free_list;
+    volatile struct move_node *mf = move_free_list;
     if (!mf)
         shutdown("Move queue overflow");
     move_free_list = mf->next;
@@ -95,21 +95,21 @@ move_alloc(void)
 
 // Check if a move_queue is empty
 int
-move_queue_empty(struct move_queue_head *mh)
+move_queue_empty(volatile struct move_queue_head *mh)
 {
     return mh->first == NULL;
 }
 
 // Return first node in a move queue
-struct move_node *
-move_queue_first(struct move_queue_head *mh)
+volatile struct move_node *
+move_queue_first(volatile struct move_queue_head *mh)
 {
     return mh->first;
 }
 
 // Add move to queue
 int
-move_queue_push(struct move_node *m, struct move_queue_head *mh)
+move_queue_push(volatile struct move_node *m, volatile struct move_queue_head *mh)
 {
     m->next = NULL;
     if (mh->first) {
@@ -122,24 +122,24 @@ move_queue_push(struct move_node *m, struct move_queue_head *mh)
 }
 
 // Remove first item from queue (caller must ensure queue not empty)
-struct move_node *
-move_queue_pop(struct move_queue_head *mh)
+volatile struct move_node *
+move_queue_pop(volatile struct move_queue_head *mh)
 {
-    struct move_node *mn = mh->first;
+    volatile struct move_node *mn = mh->first;
     mh->first = mn->next;
     return mn;
 }
 
 // Completely clear move queue (used in shutdown handlers)
 void
-move_queue_clear(struct move_queue_head *mh)
+move_queue_clear(volatile struct move_queue_head *mh)
 {
     mh->first = NULL;
 }
 
 // Initialize a move_queue with nodes of the give size
 void
-move_queue_setup(struct move_queue_head *mh, int size)
+move_queue_setup(volatile struct move_queue_head *mh, int size)
 {
     mh->first = mh->last = NULL;
 
@@ -157,10 +157,10 @@ move_reset(void)
     // Add everything in move_list to the free list.
     uint32_t i;
     for (i=0; i<move_count-1; i++) {
-        struct move_node *mf = move_list + i*move_item_size;
+        volatile struct move_node *mf = move_list + i*move_item_size;
         mf->next = move_list + (i + 1)*move_item_size;
     }
-    struct move_node *mf = move_list + (move_count - 1)*move_item_size;
+    volatile struct move_node *mf = move_list + (move_count - 1)*move_item_size;
     mf->next = NULL;
     move_free_list = move_list;
 }
@@ -173,7 +173,7 @@ move_finalize(void)
         shutdown("Already finalized");
     struct move_queue_head dummy;
     move_queue_setup(&dummy, sizeof(*move_free_list));
-    move_list = alloc_chunks(move_item_size, 1024, &move_count);
+    move_list = alloc_chunks(move_item_size, 1024, (uint16_t*)&move_count);
     move_reset();
 }
 
@@ -183,13 +183,13 @@ move_finalize(void)
  ****************************************************************/
 
 struct oid_s {
-    void *type, *data;
+    volatile void *type, *data;
 };
 
-static struct oid_s *oids;
-static uint8_t oid_count;
+volatile static struct oid_s *oids;
+volatile static uint8_t oid_count;
 
-void *
+volatile void *
 oid_lookup(uint8_t oid, void *type)
 {
     if (oid >= oid_count || type != oids[oid].type)
@@ -197,18 +197,18 @@ oid_lookup(uint8_t oid, void *type)
     return oids[oid].data;
 }
 
-void *
+volatile void *
 oid_alloc(uint8_t oid, void *type, uint16_t size)
 {
     if (oid >= oid_count || oids[oid].type || is_finalized())
         shutdown("Can't assign oid");
     oids[oid].type = type;
-    void *data = alloc_chunk(size);
+    volatile void *data = alloc_chunk(size);
     oids[oid].data = data;
     return data;
 }
 
-void *
+volatile void *
 oid_next(uint8_t *i, void *type)
 {
     uint8_t oid = *i;

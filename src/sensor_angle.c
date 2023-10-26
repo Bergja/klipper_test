@@ -38,7 +38,7 @@ enum {
     SA_PENDING = 1<<2,
 };
 
-static struct task_wake angle_wake;
+volatile static struct task_wake angle_wake;
 
 // Event handler that wakes spi_angle_task() periodically
 static uint_fast8_t
@@ -243,7 +243,7 @@ command_query_spi_angle(uint32_t *args)
     sa->sequence = 0;
     sa->data_count = 0;
     sa->time_shift = args[3];
-    sched_add_timer(&sa->timer);
+    // sched_add_timer(&sa->timer);
 }
 DECL_COMMAND(command_query_spi_angle,
              "query_spi_angle oid=%c clock=%u rest_ticks=%u time_shift=%c");
