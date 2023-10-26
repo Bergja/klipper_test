@@ -40,6 +40,7 @@ struct gpio_adc {
     adc_oneshot_unit_handle_t *adc;
     adc_channel_t chan;
 };
+void gpio_adc_init(void);
 struct gpio_adc gpio_adc_setup(uint32_t pin);
 uint32_t gpio_adc_sample(struct gpio_adc g);
 uint16_t gpio_adc_read(struct gpio_adc g);

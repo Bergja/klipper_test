@@ -117,6 +117,6 @@ timer_read_time(void)
     uint64_t cnt;
     uint32_t ret;
     ESP_ERROR_CHECK(gptimer_get_raw_count(hgptimer, &cnt));
-    ret = cnt;
+    ret = (cnt & 0xffffffff);
     return ret;
 }

@@ -237,5 +237,5 @@ release:
 
 set-release:
 	@echo " Saving config to Release Setup"
-	$(Q)cp -f src/esp/KlipperESPProject/sdkconfig.defaults.esp32 src/KlipperESPProject/esp/sdkconfig.release.defaults.esp32
-	$(Q)cp -f.config .config.release 
+	$(Q)cp -f src/esp/KlipperESPProject/sdkconfig.defaults.esp32 src/esp/KlipperESPProject/sdkconfig.release.defaults.esp32
+	$(Q)cp -f .config .config.release 
