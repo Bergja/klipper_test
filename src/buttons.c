@@ -110,7 +110,7 @@ command_buttons_query(uint32_t *args)
         shutdown("Invalid buttons retransmit count");
     if (! b->rest_ticks)
         return;
-    // sched_add_timer(&b->time);
+    sched_add_timer(&b->time);
 }
 DECL_COMMAND(command_buttons_query,
              "buttons_query oid=%c clock=%u rest_ticks=%u retransmit_count=%c"

@@ -78,7 +78,7 @@ command_query_thermocouple(uint32_t *args)
     spi->max_value = args[4];
     spi->max_invalid = args[5];
     spi->invalid_count = 0;
-    // sched_add_timer(&spi->timer);
+    sched_add_timer(&spi->timer);
 }
 DECL_COMMAND(command_query_thermocouple,
              "query_thermocouple oid=%c clock=%u rest_ticks=%u"

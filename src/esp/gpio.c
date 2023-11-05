@@ -538,7 +538,7 @@ void gpio_in_reset(struct gpio_in g, int32_t pull_up)
 
 uint8_t gpio_in_read(struct gpio_in g)
 {
-    DEBUGI("klipperGPIO","pinread");
+    // DEBUGI("klipperGPIO","pinread");
     gpio_dev_t *hw = g.regs;
 
     if (g.bit < 0x100000000)

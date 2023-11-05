@@ -243,7 +243,7 @@ command_query_spi_angle(uint32_t *args)
     sa->sequence = 0;
     sa->data_count = 0;
     sa->time_shift = args[3];
-    // sched_add_timer(&sa->timer);
+    sched_add_timer(&sa->timer);
 }
 DECL_COMMAND(command_query_spi_angle,
              "query_spi_angle oid=%c clock=%u rest_ticks=%u time_shift=%c");

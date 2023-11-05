@@ -4,12 +4,12 @@
 //
 // This file may be distributed under the terms of the GNU GPLv3 license.
 
-#include "autoconf.h" // CONFIG_CLOCK_FREQ
-#include "board/irq.h" // irq_disable
-#include "board/misc.h" // timer_from_us
+#include "autoconf.h"        // CONFIG_CLOCK_FREQ
+#include "board/irq.h"       // irq_disable
+#include "board/misc.h"      // timer_from_us
 #include "board/timer_irq.h" // timer_dispatch_many
-#include "command.h" // shutdown
-#include "sched.h" // sched_timer_dispatch
+#include "command.h"         // shutdown
+#include "sched.h"           // sched_timer_dispatch
 
 DECL_CONSTANT("CLOCK_FREQ", CONFIG_CLOCK_FREQ);
 
@@ -41,21 +41,27 @@ uint32_t
 timer_dispatch_many(void)
 {
     uint32_t tru = timer_repeat_until;
-    for (;;) {
+    for (;;)
+    {
         // Run the next software timer
         uint32_t next = sched_timer_dispatch();
-
         uint32_t now = timer_read_time();
         int32_t diff = next - now;
         if (diff > (int32_t)TIMER_MIN_TRY_TICKS)
+        {
             // Schedule next timer normally.
             return next;
-
-        if (unlikely(timer_is_before(tru, now))) {
+        }
+        if (unlikely(timer_is_before(tru, now)))
+        {
             // Check if there are too many repeat timers
             if (diff < (int32_t)(-timer_from_us(1000)))
-                try_shutdown("Rescheduled timer in the past");
-            if (sched_tasks_busy()) {
+            {
+                // try_shutdown("Rescheduled timer in the past");
+                DEBUGI("T","D:%ld",diff);
+            }
+            if (sched_tasks_busy())
+            {
                 timer_repeat_until = now + TIMER_REPEAT_TICKS;
                 return now + TIMER_DEFER_REPEAT_TICKS;
             }
@@ -70,8 +76,7 @@ timer_dispatch_many(void)
 }
 
 // Make sure timer_repeat_until doesn't wrap 32bit comparisons
-void
-timer_task(void)
+void timer_task(void)
 {
     uint32_t now = timer_read_time();
     irq_disable();

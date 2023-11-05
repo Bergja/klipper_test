@@ -142,7 +142,7 @@ void serial_init(void)
     ESP_ERROR_CHECK(uart_driver_install(KLIPPER_SERIAL, 2048, TX_BUFFER_SIZE, 5, &klipper_serial_queue, ESP_INTR_FLAG_LEVEL1));
     ESP_ERROR_CHECK(uart_enable_rx_intr(KLIPPER_SERIAL));
     ESP_ERROR_CHECK(uart_set_rx_full_threshold(KLIPPER_SERIAL, 100));
-    xTaskCreatePinnedToCore(&serial_event_task, "serial_event_task", 2048, NULL, 2, NULL, 1);
+    xTaskCreatePinnedToCore(&serial_event_task, "serial_event_task", 2048, NULL, 3, NULL, 1);
     uint32_t temp;
     uart_get_baudrate(KLIPPER_SERIAL, &temp);
     DEBUGI("klipperUart", "Rate:%ld", temp);

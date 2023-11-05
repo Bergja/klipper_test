@@ -80,7 +80,7 @@ lis2dw_reschedule_timer(struct lis2dw *ax)
 {
     irq_disable();
     ax->timer.waketime = timer_read_time() + ax->rest_ticks;
-    // sched_add_timer(&ax->timer);
+    sched_add_timer(&ax->timer);
     irq_enable();
 }
 
@@ -184,7 +184,7 @@ command_query_lis2dw(uint32_t *args)
     ax->sequence = ax->limit_count = 0;
     ax->data_count = 0;
     ax->fifo_disable = 0;
-    // sched_add_timer(&ax->timer);
+    sched_add_timer(&ax->timer);
 }
 DECL_COMMAND(command_query_lis2dw,
              "query_lis2dw oid=%c clock=%u rest_ticks=%u");

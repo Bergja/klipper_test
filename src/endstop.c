@@ -92,7 +92,7 @@ command_endstop_home(uint32_t *args)
     e->flags = ESF_HOMING | (args[5] ? ESF_PIN_HIGH : 0);
     e->ts = trsync_oid_lookup(args[6]);
     e->trigger_reason = args[7];
-    // sched_add_timer(&e->time);
+    sched_add_timer(&e->time);
 }
 DECL_COMMAND(command_endstop_home,
              "endstop_home oid=%c clock=%u sample_ticks=%u sample_count=%c"

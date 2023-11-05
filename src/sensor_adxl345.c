@@ -74,7 +74,7 @@ adxl_reschedule_timer(struct adxl345 *ax)
 {
     irq_disable();
     ax->timer.waketime = timer_read_time() + ax->rest_ticks;
-    // sched_add_timer(&ax->timer);
+    sched_add_timer(&ax->timer);
     irq_enable();
 }
 
@@ -186,7 +186,7 @@ command_query_adxl345(uint32_t *args)
     ax->flags = AX_HAVE_START;
     ax->sequence = ax->limit_count = 0;
     ax->data_count = 0;
-    // sched_add_timer(&ax->timer);
+    sched_add_timer(&ax->timer);
 }
 DECL_COMMAND(command_query_adxl345,
              "query_adxl345 oid=%c clock=%u rest_ticks=%u");

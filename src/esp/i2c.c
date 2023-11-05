@@ -103,7 +103,7 @@ void i2c_write(struct i2c_config config, uint8_t write_len, uint8_t *write)
         {
             goto end;
         }
-        err = i2c_master_cmd_begin(config.i2c, cmd, 100);
+        err = i2c_master_cmd_begin(config.i2c, cmd, 10);
     end:
         i2c_cmd_link_delete(cmd);
     }
@@ -133,7 +133,7 @@ void i2c_read(struct i2c_config config, uint8_t reg_len, uint8_t *reg, uint8_t r
         {
             goto end;
         }
-        err=i2c_master_cmd_begin(config.i2c,cmd,100);
+        err=i2c_master_cmd_begin(config.i2c,cmd,10);
     end:
         i2c_cmd_link_delete(cmd);
     }
